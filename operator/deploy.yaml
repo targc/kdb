@@ -57,3 +57,4 @@ spec:
       containers:
         - name: operator
           image: k3d-registry.localhost:5000/kdb-operator:latest
+
