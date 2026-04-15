@@ -13,7 +13,7 @@ if [ ! -f "${BASH_SOURCE[0]}" ]; then
   trap 'rm -rf "$TMPDIR"' EXIT
   echo "Cloning $REPO..."
   git clone --depth=1 "$REPO" "$TMPDIR/kdb"
-  IMAGE="$IMAGE" SKIP_TRAEFIK="$SKIP_TRAEFIK" bash "$TMPDIR/kdb/scripts/staging/setup.sh"
+  IMAGE="$IMAGE" SKIP_TRAEFIK="$SKIP_TRAEFIK" BUILD_OPERATOR_IMAGE="$BUILD_OPERATOR_IMAGE" bash "$TMPDIR/kdb/scripts/staging/setup.sh"
   exit $?
 fi
 
@@ -21,5 +21,8 @@ DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 if [ "${SKIP_TRAEFIK}" != "true" ]; then
   bash "$DIR/setup-traefik.sh"
+fi
+if [ "${BUILD_OPERATOR_IMAGE}" = "true" ]; then
+  bash "$DIR/build-operator.sh"
 fi
 bash "$DIR/setup-operator.sh"
