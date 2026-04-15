@@ -6,8 +6,8 @@
 # Usage (remote): IMAGE=your-registry/kdb-operator:latest bash <(curl -fsSL https://raw.githubusercontent.com/targc/kdb/main/scripts/staging/setup.sh)
 set -e
 
-# When piped via curl, BASH_SOURCE[0] is not a real file — clone the repo and re-exec.
-if [ ! -f "${BASH_SOURCE[0]}" ]; then
+# When run via curl (pipe or process substitution), sibling scripts won't exist — clone and re-exec.
+if [ ! -f "$(dirname "${BASH_SOURCE[0]}")/setup-operator.sh" ]; then
   REPO="https://github.com/targc/kdb"
   TMPDIR="$(mktemp -d)"
   trap 'rm -rf "$TMPDIR"' EXIT
