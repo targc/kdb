@@ -53,13 +53,13 @@ All resources accept an optional `image` field to override the default.
 For an existing cluster with `tls-cert` already applied:
 
 ```bash
-IMAGE=your-registry/kdb-operator:latest bash <(curl -fsSL https://raw.githubusercontent.com/targc/kdb/main/scripts/staging/setup.sh)
+curl -fsSL https://raw.githubusercontent.com/targc/kdb/main/scripts/staging/setup.sh | IMAGE=your-registry/kdb-operator:latest bash
 ```
 
 Skip Traefik installation if already installed:
 
 ```bash
-IMAGE=your-registry/kdb-operator:latest SKIP_TRAEFIK=true bash <(curl -fsSL https://raw.githubusercontent.com/targc/kdb/main/scripts/staging/setup.sh)
+IMAGE=your-registry/kdb-operator:latest SKIP_TRAEFIK=true curl -fsSL https://raw.githubusercontent.com/targc/kdb/main/scripts/staging/setup.sh | bash
 ```
 
 The script clones this repo to a temp dir, installs Traefik via Helm, and deploys the operator.
