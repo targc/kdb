@@ -1,0 +1,60 @@
+---
+apiVersion: traefik.io/v1alpha1
+kind: IngressRouteTCP
+metadata:
+  name: example-redis-1
+  namespace: default
+spec:
+  entryPoints:
+    - tcp
+  routes:
+    - match: HostSNI(`test-redis-1.tcplb.nortezh.com`)
+      services:
+        - name: example-redis-1
+          port: 6379
+  tls:
+    secretName: tls-cert
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: example-redis-1
+  namespace: default
+spec:
+  selector:
+    app: example-redis-1
+  ports:
+    - name: app
+      port: 6379
+      targetPort: 6379
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: example-redis-1
+  namespace: default
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: example-redis-1
+  template:
+    metadata:
+      labels:
+        app: example-redis-1
+    spec:
+      containers:
+        - name: redis
+          image: redis:8
+          ports:
+            - containerPort: 6379
+          # No SSL config needed — Traefik handles it
+        # volumeMounts:
+        #   - name: data
+        #     mountPath: /data
+      # volumes:
+      #   - name: data
+      #     persistentVolumeClaim:
+      #       claimName: example-redis-1-data

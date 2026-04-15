@@ -1,0 +1,65 @@
+---
+apiVersion: traefik.io/v1alpha1
+kind: IngressRouteTCP
+metadata:
+  name: example-mongo-1
+  namespace: default
+spec:
+  entryPoints:
+    - tcp
+  routes:
+    - match: HostSNI(`test-mongo-1.tcplb.nortezh.com`)
+      services:
+        - name: example-mongo-1
+          port: 27017
+  tls:
+    secretName: tls-cert
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: example-mongo-1
+  namespace: default
+spec:
+  selector:
+    app: example-mongo-1
+  ports:
+    - name: app
+      port: 27017
+      targetPort: 27017
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: example-mongo-1
+  namespace: default
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: example-mongo-1
+  template:
+    metadata:
+      labels:
+        app: example-mongo-1
+    spec:
+      containers:
+        - name: mongo
+          image: mongo:8.2
+          ports:
+            - containerPort: 27017
+          env:
+            - name: MONGO_INITDB_ROOT_USERNAME
+              value: "mongo"
+            - name: MONGO_INITDB_ROOT_PASSWORD
+              value: "mongo"
+          # No SSL config needed — Traefik handles it
+        # volumeMounts:
+        #   - name: data
+        #     mountPath: /data/db
+      # volumes:
+      #   - name: data
+      #     persistentVolumeClaim:
+      #       claimName: example-mongo-1-data

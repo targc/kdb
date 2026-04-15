@@ -1,0 +1,7 @@
+apiVersion: kdb.io/v1alpha1
+kind: Redis
+metadata:
+  name: example-redis-1
+  namespace: default
+spec:
+  domain: test-redis-1.tcplb.nortezh.com

@@ -1,0 +1,9 @@
+apiVersion: kdb.io/v1alpha1
+kind: Mongo
+metadata:
+  name: example-mongo-1
+  namespace: default
+spec:
+  domain: test-mongo-1.tcplb.nortezh.com
+  user: mongo
+  password: mongo

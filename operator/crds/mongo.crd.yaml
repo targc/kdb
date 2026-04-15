@@ -1,0 +1,54 @@
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: mongo.kdb.io
+spec:
+  group: kdb.io
+  names:
+    kind: Mongo
+    plural: mongo
+    singular: mongo
+    shortNames:
+      - mg
+  scope: Namespaced
+  versions:
+    - name: v1alpha1
+      served: true
+      storage: true
+      schema:
+        openAPIV3Schema:
+          type: object
+          properties:
+            spec:
+              type: object
+              required: [domain, user, password]
+              properties:
+                domain:
+                  type: string
+                  description: HostSNI hostname for TCP routing
+                user:
+                  type: string
+                  description: MONGO_INITDB_ROOT_USERNAME
+                password:
+                  type: string
+                  description: MONGO_INITDB_ROOT_PASSWORD
+                image:
+                  type: string
+                  description: Docker image (default mongo:8.2)
+            status:
+              type: object
+              properties:
+                phase:
+                  type: string
+      additionalPrinterColumns:
+        - name: Domain
+          type: string
+          jsonPath: .spec.domain
+        - name: Status
+          type: string
+          jsonPath: .status.phase
+        - name: Age
+          type: date
+          jsonPath: .metadata.creationTimestamp
+      subresources:
+        status: {}

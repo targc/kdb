@@ -1,0 +1,9 @@
+apiVersion: kdb.io/v1alpha1
+kind: Postgres
+metadata:
+  name: example-pg-1
+  namespace: default
+spec:
+  domain: test-pg-1.tcplb.nortezh.com
+  user: postgres
+  password: postgres
