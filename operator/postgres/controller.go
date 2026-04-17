@@ -7,6 +7,7 @@ import (
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -36,6 +37,10 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		image = "postgres:16"
 	}
 
+	if err := r.reconcilePVC(ctx, pg); err != nil {
+		r.setPhase(ctx, pg, "Error")
+		return ctrl.Result{}, err
+	}
 	if err := r.reconcileTLSOption(ctx, pg); err != nil {
 		r.setPhase(ctx, pg, "Error")
 		return ctrl.Result{}, err
@@ -61,6 +66,31 @@ func (r *Reconciler) setPhase(ctx context.Context, pg *Postgres, phase string) {
 	if err := r.Status().Update(ctx, pg); err != nil {
 		ctrl.LoggerFrom(ctx).Error(err, "failed to update status", "phase", phase)
 	}
+}
+
+func (r *Reconciler) reconcilePVC(ctx context.Context, pg *Postgres) error {
+	storageClass := pg.Spec.Storage.StorageClass
+	pvc := &corev1.PersistentVolumeClaim{ObjectMeta: metav1.ObjectMeta{Name: pg.Spec.Storage.PVCName, Namespace: pg.Namespace}}
+	_, err := controllerutil.CreateOrUpdate(ctx, r.Client, pvc, func() error {
+		if err := controllerutil.SetControllerReference(pg, pvc, r.Scheme); err != nil {
+			return err
+		}
+		if pvc.CreationTimestamp.IsZero() {
+			modes := make([]corev1.PersistentVolumeAccessMode, len(pg.Spec.Storage.AccessModes))
+			for i, m := range pg.Spec.Storage.AccessModes {
+				modes[i] = corev1.PersistentVolumeAccessMode(m)
+			}
+			pvc.Spec.AccessModes = modes
+			pvc.Spec.StorageClassName = &storageClass
+			pvc.Spec.Resources = corev1.VolumeResourceRequirements{
+				Requests: corev1.ResourceList{
+					corev1.ResourceStorage: resource.MustParse(pg.Spec.Storage.Size),
+				},
+			}
+		}
+		return nil
+	})
+	return wrap("PVC", err)
 }
 
 func (r *Reconciler) reconcileTLSOption(ctx context.Context, pg *Postgres) error {
@@ -152,6 +182,18 @@ func (r *Reconciler) reconcileDeployment(ctx context.Context, pg *Postgres, imag
 						{Name: "POSTGRES_USER", Value: pg.Spec.User},
 						{Name: "POSTGRES_PASSWORD", Value: pg.Spec.Password},
 					},
+					VolumeMounts: []corev1.VolumeMount{{
+						Name:      "data",
+						MountPath: mountPath(pg),
+					}},
+				}},
+				Volumes: []corev1.Volume{{
+					Name: "data",
+					VolumeSource: corev1.VolumeSource{
+						PersistentVolumeClaim: &corev1.PersistentVolumeClaimVolumeSource{
+							ClaimName: pg.Spec.Storage.PVCName,
+						},
+					},
 				}},
 			},
 		}
@@ -164,6 +206,13 @@ func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&Postgres{}).
 		Complete(r)
+}
+
+func mountPath(pg *Postgres) string {
+	if pg.Spec.Storage.MountPath != "" {
+		return pg.Spec.Storage.MountPath
+	}
+	return "/var/lib/postgresql/data"
 }
 
 func wrap(resource string, err error) error {

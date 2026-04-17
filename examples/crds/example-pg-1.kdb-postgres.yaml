@@ -7,3 +7,10 @@ spec:
   domain: test-pg-1.tcplb.nortezh.com
   user: postgres
   password: postgres
+  storage:
+    pvcName: example-pg-1-data
+    size: 1Gi
+    storageClass: local-path
+    accessModes:
+      - ReadWriteOnce
+    # mountPath: /var/lib/postgresql/data  # optional, this is the default

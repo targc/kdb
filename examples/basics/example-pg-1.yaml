@@ -1,4 +1,18 @@
 ---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: example-pg-1-data
+  namespace: default
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: local-path
+  resources:
+    requests:
+      storage: 1Gi
+
+---
 apiVersion: traefik.io/v1alpha1
 kind: TLSOption
 metadata:
@@ -60,7 +74,7 @@ spec:
     spec:
       containers:
         - name: postgres
-          image: postgres:16 # user can specify their image
+          image: postgres:16
           ports:
             - containerPort: 5432
           env:
@@ -68,11 +82,10 @@ spec:
               value: "postgres"
             - name: POSTGRES_PASSWORD
               value: "postgres"
-      #       # No SSL config needed — Traefik handles it
-      #     volumeMounts:
-      #       - name: data
-      #         mountPath: /var/lib/postgresql/data
-      # volumes:
-      #   - name: data
-      #     persistentVolumeClaim:
-      #       claimName: example-pg-1-data
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/postgresql/data
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: example-pg-1-data
