@@ -7,6 +7,7 @@ import (
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -36,6 +37,10 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		image = "redis:8"
 	}
 
+	if err := r.reconcilePVC(ctx, redis); err != nil {
+		r.setPhase(ctx, redis, "Error")
+		return ctrl.Result{}, err
+	}
 	if err := r.reconcileIngressRouteTCP(ctx, redis); err != nil {
 		r.setPhase(ctx, redis, "Error")
 		return ctrl.Result{}, err
@@ -57,6 +62,38 @@ func (r *Reconciler) setPhase(ctx context.Context, redis *Redis, phase string) {
 	if err := r.Status().Update(ctx, redis); err != nil {
 		ctrl.LoggerFrom(ctx).Error(err, "failed to update status", "phase", phase)
 	}
+}
+
+func (r *Reconciler) reconcilePVC(ctx context.Context, redis *Redis) error {
+	storageClass := redis.Spec.Storage.StorageClass
+	pvc := &corev1.PersistentVolumeClaim{ObjectMeta: metav1.ObjectMeta{Name: redis.Spec.Storage.PVCName, Namespace: redis.Namespace}}
+	_, err := controllerutil.CreateOrUpdate(ctx, r.Client, pvc, func() error {
+		if err := controllerutil.SetControllerReference(redis, pvc, r.Scheme); err != nil {
+			return err
+		}
+		if pvc.CreationTimestamp.IsZero() {
+			modes := make([]corev1.PersistentVolumeAccessMode, len(redis.Spec.Storage.AccessModes))
+			for i, m := range redis.Spec.Storage.AccessModes {
+				modes[i] = corev1.PersistentVolumeAccessMode(m)
+			}
+			pvc.Spec.AccessModes = modes
+			pvc.Spec.StorageClassName = &storageClass
+			pvc.Spec.Resources = corev1.VolumeResourceRequirements{
+				Requests: corev1.ResourceList{
+					corev1.ResourceStorage: resource.MustParse(redis.Spec.Storage.Size),
+				},
+			}
+		}
+		return nil
+	})
+	return wrap("PVC", err)
+}
+
+func mountPath(redis *Redis) string {
+	if redis.Spec.Storage.MountPath != "" {
+		return redis.Spec.Storage.MountPath
+	}
+	return "/data"
 }
 
 func (r *Reconciler) reconcileIngressRouteTCP(ctx context.Context, redis *Redis) error {
@@ -125,9 +162,20 @@ func (r *Reconciler) reconcileDeployment(ctx context.Context, redis *Redis, imag
 			container.Args = []string{"--requirepass", redis.Spec.Password}
 		}
 
+		container.VolumeMounts = []corev1.VolumeMount{{Name: "data", MountPath: mountPath(redis)}}
 		dep.Spec.Template = corev1.PodTemplateSpec{
 			ObjectMeta: metav1.ObjectMeta{Labels: labels},
-			Spec:       corev1.PodSpec{Containers: []corev1.Container{container}},
+			Spec: corev1.PodSpec{
+				Containers: []corev1.Container{container},
+				Volumes: []corev1.Volume{{
+					Name: "data",
+					VolumeSource: corev1.VolumeSource{
+						PersistentVolumeClaim: &corev1.PersistentVolumeClaimVolumeSource{
+							ClaimName: redis.Spec.Storage.PVCName,
+						},
+					},
+				}},
+			},
 		}
 		return nil
 	})

@@ -1,4 +1,18 @@
 ---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: example-mongo-1-data
+  namespace: default
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: local-path
+  resources:
+    requests:
+      storage: 1Gi
+
+---
 apiVersion: traefik.io/v1alpha1
 kind: IngressRouteTCP
 metadata:
@@ -55,11 +69,10 @@ spec:
               value: "mongo"
             - name: MONGO_INITDB_ROOT_PASSWORD
               value: "mongo"
-          # No SSL config needed — Traefik handles it
-        # volumeMounts:
-        #   - name: data
-        #     mountPath: /data/db
-      # volumes:
-      #   - name: data
-      #     persistentVolumeClaim:
-      #       claimName: example-mongo-1-data
+          volumeMounts:
+            - name: data
+              mountPath: /data/db
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: example-mongo-1-data

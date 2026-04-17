@@ -7,3 +7,10 @@ spec:
   domain: test-mongo-1.tcplb.nortezh.com
   user: mongo
   password: mongo
+  storage:
+    pvcName: example-mongo-1-data
+    size: 1Gi
+    storageClass: local-path
+    accessModes:
+      - ReadWriteOnce
+    # mountPath: /data/db  # optional, this is the default

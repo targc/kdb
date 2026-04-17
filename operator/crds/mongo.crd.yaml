@@ -21,7 +21,7 @@ spec:
           properties:
             spec:
               type: object
-              required: [domain, user, password]
+              required: [domain, user, password, storage]
               properties:
                 domain:
                   type: string
@@ -35,6 +35,28 @@ spec:
                 image:
                   type: string
                   description: Docker image (default mongo:8.2)
+                storage:
+                  type: object
+                  required: [pvcName, size, storageClass, accessModes]
+                  properties:
+                    pvcName:
+                      type: string
+                      description: Name of the PersistentVolumeClaim
+                    size:
+                      type: string
+                      description: Storage size (e.g. 1Gi)
+                    storageClass:
+                      type: string
+                      description: StorageClass name
+                    accessModes:
+                      type: array
+                      items:
+                        type: string
+                        enum: [ReadWriteOnce, ReadOnlyMany, ReadWriteMany, ReadWriteOncePod]
+                      description: PVC access modes
+                    mountPath:
+                      type: string
+                      description: Mount path in container (default /data/db)
             status:
               type: object
               properties:

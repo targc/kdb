@@ -5,3 +5,10 @@ metadata:
   namespace: default
 spec:
   domain: test-redis-1.tcplb.nortezh.com
+  storage:
+    pvcName: example-redis-1-data
+    size: 1Gi
+    storageClass: local-path
+    accessModes:
+      - ReadWriteOnce
+    # mountPath: /data  # optional, this is the default

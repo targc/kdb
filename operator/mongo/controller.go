@@ -7,6 +7,7 @@ import (
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -36,6 +37,10 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		image = "mongo:8.2"
 	}
 
+	if err := r.reconcilePVC(ctx, mongo); err != nil {
+		r.setPhase(ctx, mongo, "Error")
+		return ctrl.Result{}, err
+	}
 	if err := r.reconcileIngressRouteTCP(ctx, mongo); err != nil {
 		r.setPhase(ctx, mongo, "Error")
 		return ctrl.Result{}, err
@@ -57,6 +62,38 @@ func (r *Reconciler) setPhase(ctx context.Context, mongo *Mongo, phase string) {
 	if err := r.Status().Update(ctx, mongo); err != nil {
 		ctrl.LoggerFrom(ctx).Error(err, "failed to update status", "phase", phase)
 	}
+}
+
+func (r *Reconciler) reconcilePVC(ctx context.Context, mongo *Mongo) error {
+	storageClass := mongo.Spec.Storage.StorageClass
+	pvc := &corev1.PersistentVolumeClaim{ObjectMeta: metav1.ObjectMeta{Name: mongo.Spec.Storage.PVCName, Namespace: mongo.Namespace}}
+	_, err := controllerutil.CreateOrUpdate(ctx, r.Client, pvc, func() error {
+		if err := controllerutil.SetControllerReference(mongo, pvc, r.Scheme); err != nil {
+			return err
+		}
+		if pvc.CreationTimestamp.IsZero() {
+			modes := make([]corev1.PersistentVolumeAccessMode, len(mongo.Spec.Storage.AccessModes))
+			for i, m := range mongo.Spec.Storage.AccessModes {
+				modes[i] = corev1.PersistentVolumeAccessMode(m)
+			}
+			pvc.Spec.AccessModes = modes
+			pvc.Spec.StorageClassName = &storageClass
+			pvc.Spec.Resources = corev1.VolumeResourceRequirements{
+				Requests: corev1.ResourceList{
+					corev1.ResourceStorage: resource.MustParse(mongo.Spec.Storage.Size),
+				},
+			}
+		}
+		return nil
+	})
+	return wrap("PVC", err)
+}
+
+func mountPath(mongo *Mongo) string {
+	if mongo.Spec.Storage.MountPath != "" {
+		return mongo.Spec.Storage.MountPath
+	}
+	return "/data/db"
 }
 
 func (r *Reconciler) reconcileIngressRouteTCP(ctx context.Context, mongo *Mongo) error {
@@ -125,6 +162,15 @@ func (r *Reconciler) reconcileDeployment(ctx context.Context, mongo *Mongo, imag
 					Env: []corev1.EnvVar{
 						{Name: "MONGO_INITDB_ROOT_USERNAME", Value: mongo.Spec.User},
 						{Name: "MONGO_INITDB_ROOT_PASSWORD", Value: mongo.Spec.Password},
+					},
+					VolumeMounts: []corev1.VolumeMount{{Name: "data", MountPath: mountPath(mongo)}},
+				}},
+				Volumes: []corev1.Volume{{
+					Name: "data",
+					VolumeSource: corev1.VolumeSource{
+						PersistentVolumeClaim: &corev1.PersistentVolumeClaimVolumeSource{
+							ClaimName: mongo.Spec.Storage.PVCName,
+						},
 					},
 				}},
 			},

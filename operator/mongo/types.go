@@ -14,11 +14,20 @@ func AddToScheme(s *runtime.Scheme) error {
 	return nil
 }
 
+type StorageSpec struct {
+	PVCName      string   `json:"pvcName"`
+	Size         string   `json:"size"`
+	StorageClass string   `json:"storageClass"`
+	AccessModes  []string `json:"accessModes"`
+	MountPath    string   `json:"mountPath,omitempty"`
+}
+
 type Spec struct {
-	Domain   string `json:"domain"`
-	User     string `json:"user"`
-	Password string `json:"password"`
-	Image    string `json:"image,omitempty"`
+	Domain   string      `json:"domain"`
+	User     string      `json:"user"`
+	Password string      `json:"password"`
+	Image    string      `json:"image,omitempty"`
+	Storage  StorageSpec `json:"storage"`
 }
 
 type Status struct {
