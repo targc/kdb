@@ -14,9 +14,15 @@ spec:
   domain: my-pg.tcplb.example.com
   user: postgres
   password: postgres
+  storage:
+    pvcName: my-pg-data
+    size: 10Gi
+    storageClass: local-path
+    accessModes:
+      - ReadWriteOnce
 ```
 
-The operator creates a Deployment, Service, and Traefik `IngressRouteTCP` — the database is immediately reachable at `my-pg.tcplb.example.com:6060` over TLS.
+The operator creates a PVC, Deployment, Service, and Traefik `IngressRouteTCP` — the database is immediately reachable at `my-pg.tcplb.example.com:6060` over TLS.
 
 ## How it works
 
@@ -32,13 +38,25 @@ Traefik routes traffic by the SNI hostname in the TLS handshake. Each `kdb.io` r
 
 ## Supported resources
 
-| Kind | API | Required fields | Default image |
-|------|-----|----------------|---------------|
-| `Postgres` | `kdb.io/v1alpha1` | `domain`, `user`, `password` | `postgres:16` |
-| `Mongo` | `kdb.io/v1alpha1` | `domain`, `user`, `password` | `mongo:8.2` |
-| `Redis` | `kdb.io/v1alpha1` | `domain` | `redis:8` |
+| Kind | API | Required fields | Default image | Default mountPath |
+|------|-----|----------------|---------------|-------------------|
+| `Postgres` | `kdb.io/v1alpha1` | `domain`, `user`, `password`, `storage` | `postgres:16` | `/var/lib/postgresql/data` |
+| `Mongo` | `kdb.io/v1alpha1` | `domain`, `user`, `password`, `storage` | `mongo:8.2` | `/data/db` |
+| `Redis` | `kdb.io/v1alpha1` | `domain`, `storage` | `redis:8` | `/data` |
 
-All resources accept an optional `image` field to override the default.
+All resources accept optional `image` and `storage.mountPath` fields.
+
+The `storage` block is required for all resources:
+
+```yaml
+storage:
+  pvcName: <name>        # required — name of the PVC to create
+  size: 10Gi             # required
+  storageClass: local-path  # required
+  accessModes:           # required — enum: ReadWriteOnce, ReadOnlyMany, ReadWriteMany, ReadWriteOncePod
+    - ReadWriteOnce
+  mountPath: /data       # optional — defaults to the per-resource path above
+```
 
 ## Prerequisites
 

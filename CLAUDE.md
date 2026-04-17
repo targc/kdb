@@ -10,15 +10,37 @@ A local k3d cluster for testing Traefik TCP load balancing in front of PostgreSQ
 - **Port mapping**: host `6060` → k3d server node `6060` (via `k3d-kdb-local-serverlb`)
 
 ```bash
-bash start.sh                          # create cluster + install Traefik + apply cert
-kubectl apply -f example-pg-1.yaml    # deploy PostgreSQL example
-kubectl apply -f example-mongo-1.yaml # deploy MongoDB example
-kubectl apply -f example-redis-1.yaml # deploy Redis example
+bash start.sh                                                            # create cluster + install Traefik + apply cert
+kubectl apply -f examples/crds/example-pg-1.kdb-postgres.yaml           # deploy PostgreSQL (via operator CRD)
+kubectl apply -f examples/crds/example-mongo-1.kdb-mongo.yaml           # deploy MongoDB (via operator CRD)
+kubectl apply -f examples/crds/example-redis-1.kdb-redis.yaml           # deploy Redis (via operator CRD)
+kubectl apply -f examples/basics/example-pg-1.yaml                      # deploy PostgreSQL (raw manifests)
 ```
 
 ## Traefik TCP pattern for PostgreSQL
 
 See `docs/traefik-tcp-postgres-tls.md` for full explanation.
+
+## Operator CRD — storage spec
+
+All three resources (`Postgres`, `Mongo`, `Redis`) require a `storage` block:
+
+```yaml
+storage:
+  pvcName: my-pg-data      # required — PVC name
+  size: 10Gi               # required
+  storageClass: local-path # required (k3d default)
+  accessModes:             # required — ReadWriteOnce | ReadOnlyMany | ReadWriteMany | ReadWriteOncePod
+    - ReadWriteOnce
+  mountPath: /custom/path  # optional — defaults per resource:
+                           #   Postgres: /var/lib/postgresql/data
+                           #   Mongo:    /data/db
+                           #   Redis:    /data
+```
+
+The operator creates the PVC on first reconcile and never updates it (PVC is immutable after creation).
+
+## Traefik TCP pattern for PostgreSQL
 
 Key requirements for a working `IngressRouteTCP`:
 
