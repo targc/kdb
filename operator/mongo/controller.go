@@ -37,21 +37,19 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		image = "mongo:8.2"
 	}
 
-	if err := r.reconcilePVC(ctx, mongo); err != nil {
-		r.setPhase(ctx, mongo, "Error")
-		return ctrl.Result{}, err
-	}
-	if err := r.reconcileIngressRouteTCP(ctx, mongo); err != nil {
-		r.setPhase(ctx, mongo, "Error")
-		return ctrl.Result{}, err
-	}
-	if err := r.reconcileService(ctx, mongo); err != nil {
-		r.setPhase(ctx, mongo, "Error")
-		return ctrl.Result{}, err
-	}
-	if err := r.reconcileDeployment(ctx, mongo, image); err != nil {
-		r.setPhase(ctx, mongo, "Error")
-		return ctrl.Result{}, err
+	for _, fn := range []func() error{
+		func() error { return r.reconcilePVC(ctx, mongo) },
+		func() error { return r.reconcileIngressRouteTCP(ctx, mongo) },
+		func() error { return r.reconcileService(ctx, mongo) },
+		func() error { return r.reconcileDeployment(ctx, mongo, image) },
+	} {
+		if err := fn(); err != nil {
+			if errors.IsConflict(err) {
+				return ctrl.Result{Requeue: true}, nil
+			}
+			r.setPhase(ctx, mongo, "Error")
+			return ctrl.Result{}, err
+		}
 	}
 	r.setPhase(ctx, mongo, "Ready")
 	return ctrl.Result{}, nil

@@ -37,21 +37,19 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		image = "redis:8"
 	}
 
-	if err := r.reconcilePVC(ctx, redis); err != nil {
-		r.setPhase(ctx, redis, "Error")
-		return ctrl.Result{}, err
-	}
-	if err := r.reconcileIngressRouteTCP(ctx, redis); err != nil {
-		r.setPhase(ctx, redis, "Error")
-		return ctrl.Result{}, err
-	}
-	if err := r.reconcileService(ctx, redis); err != nil {
-		r.setPhase(ctx, redis, "Error")
-		return ctrl.Result{}, err
-	}
-	if err := r.reconcileDeployment(ctx, redis, image); err != nil {
-		r.setPhase(ctx, redis, "Error")
-		return ctrl.Result{}, err
+	for _, fn := range []func() error{
+		func() error { return r.reconcilePVC(ctx, redis) },
+		func() error { return r.reconcileIngressRouteTCP(ctx, redis) },
+		func() error { return r.reconcileService(ctx, redis) },
+		func() error { return r.reconcileDeployment(ctx, redis, image) },
+	} {
+		if err := fn(); err != nil {
+			if errors.IsConflict(err) {
+				return ctrl.Result{Requeue: true}, nil
+			}
+			r.setPhase(ctx, redis, "Error")
+			return ctrl.Result{}, err
+		}
 	}
 	r.setPhase(ctx, redis, "Ready")
 	return ctrl.Result{}, nil

@@ -37,25 +37,20 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		image = "postgres:16"
 	}
 
-	if err := r.reconcilePVC(ctx, pg); err != nil {
-		r.setPhase(ctx, pg, "Error")
-		return ctrl.Result{}, err
-	}
-	if err := r.reconcileTLSOption(ctx, pg); err != nil {
-		r.setPhase(ctx, pg, "Error")
-		return ctrl.Result{}, err
-	}
-	if err := r.reconcileIngressRouteTCP(ctx, pg); err != nil {
-		r.setPhase(ctx, pg, "Error")
-		return ctrl.Result{}, err
-	}
-	if err := r.reconcileService(ctx, pg); err != nil {
-		r.setPhase(ctx, pg, "Error")
-		return ctrl.Result{}, err
-	}
-	if err := r.reconcileDeployment(ctx, pg, image); err != nil {
-		r.setPhase(ctx, pg, "Error")
-		return ctrl.Result{}, err
+	for _, fn := range []func() error{
+		func() error { return r.reconcilePVC(ctx, pg) },
+		func() error { return r.reconcileTLSOption(ctx, pg) },
+		func() error { return r.reconcileIngressRouteTCP(ctx, pg) },
+		func() error { return r.reconcileService(ctx, pg) },
+		func() error { return r.reconcileDeployment(ctx, pg, image) },
+	} {
+		if err := fn(); err != nil {
+			if errors.IsConflict(err) {
+				return ctrl.Result{Requeue: true}, nil
+			}
+			r.setPhase(ctx, pg, "Error")
+			return ctrl.Result{}, err
+		}
 	}
 	r.setPhase(ctx, pg, "Ready")
 	return ctrl.Result{}, nil
