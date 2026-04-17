@@ -24,7 +24,7 @@ rules:
     resources: ["deployments"]
     verbs: ["*"]
   - apiGroups: [""]
-    resources: ["services"]
+    resources: ["services", "persistentvolumeclaims"]
     verbs: ["*"]
   - apiGroups: ["traefik.io"]
     resources: ["ingressroutetcps", "tlsoptions"]
