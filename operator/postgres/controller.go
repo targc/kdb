@@ -52,7 +52,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 			return ctrl.Result{}, err
 		}
 	}
-	r.setPhase(ctx, pg, "Ready")
+	r.setPhase(ctx, pg, "Running")
 	return ctrl.Result{}, nil
 }
 
