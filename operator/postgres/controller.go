@@ -176,6 +176,7 @@ func (r *Reconciler) reconcileDeployment(ctx context.Context, pg *Postgres, imag
 					Env: []corev1.EnvVar{
 						{Name: "POSTGRES_USER", Value: pg.Spec.User},
 						{Name: "POSTGRES_PASSWORD", Value: pg.Spec.Password},
+						{Name: "PGDATA", Value: mountPath(pg) + "/pgdata"},
 					},
 					VolumeMounts: []corev1.VolumeMount{{
 						Name:      "data",
