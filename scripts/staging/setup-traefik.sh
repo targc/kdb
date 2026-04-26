@@ -11,8 +11,14 @@ fi
 helm repo add traefik https://traefik.github.io/charts
 helm repo update
 
+EXTRA_ARGS=()
+if [ "${SKIP_TOLERATIONS}" = "true" ]; then
+  EXTRA_ARGS+=(--set-json 'tolerations=[]')
+fi
+
 helm install traefik traefik/traefik \
   --namespace traefik \
   --create-namespace \
   --wait \
-  -f "$ROOT/scripts/staging/traefik-values.yaml"
+  -f "$ROOT/scripts/staging/traefik-values.yaml" \
+  "${EXTRA_ARGS[@]}"

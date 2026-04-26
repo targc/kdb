@@ -13,7 +13,7 @@ if [ ! -f "$(dirname "${BASH_SOURCE[0]}")/setup-operator.sh" ]; then
   trap 'rm -rf "$TMPDIR"' EXIT
   echo "Cloning $REPO..."
   git clone --depth=1 "$REPO" "$TMPDIR/kdb"
-  IMAGE="$IMAGE" NAMESPACE="$NAMESPACE" SKIP_TRAEFIK="$SKIP_TRAEFIK" BUILD_OPERATOR_IMAGE="$BUILD_OPERATOR_IMAGE" bash "$TMPDIR/kdb/scripts/staging/setup.sh"
+  IMAGE="$IMAGE" NAMESPACE="$NAMESPACE" SKIP_TRAEFIK="$SKIP_TRAEFIK" SKIP_TOLERATIONS="$SKIP_TOLERATIONS" BUILD_OPERATOR_IMAGE="$BUILD_OPERATOR_IMAGE" bash "$TMPDIR/kdb/scripts/staging/setup.sh"
   exit $?
 fi
 

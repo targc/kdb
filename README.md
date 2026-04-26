@@ -74,10 +74,21 @@ For an existing cluster with `tls-cert` already applied:
 curl -fsSL https://raw.githubusercontent.com/targc/kdb/main/scripts/staging/setup.sh | IMAGE=your-registry/kdb-operator:latest bash
 ```
 
-Skip Traefik installation if already installed:
+Environment variables:
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `IMAGE` | — | Operator image to deploy (required) |
+| `SKIP_TRAEFIK` | `false` | Skip Traefik installation |
+| `SKIP_TOLERATIONS` | `false` | Skip node tolerations in Traefik Helm values |
+| `BUILD_OPERATOR_IMAGE` | `false` | Build the operator image locally before deploying |
 
 ```bash
-IMAGE=your-registry/kdb-operator:latest SKIP_TRAEFIK=true curl -fsSL https://raw.githubusercontent.com/targc/kdb/main/scripts/staging/setup.sh | bash
+# Skip Traefik if already installed
+IMAGE=your-registry/kdb-operator:latest SKIP_TRAEFIK=true bash <(curl -fsSL ...)
+
+# Skip tolerations (e.g. cluster with no tainted nodes)
+IMAGE=your-registry/kdb-operator:latest SKIP_TOLERATIONS=true bash <(curl -fsSL ...)
 ```
 
 The script clones this repo to a temp dir, installs Traefik via Helm, and deploys the operator.
