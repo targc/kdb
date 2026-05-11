@@ -77,11 +77,11 @@ func (r *Reconciler) reconcilePVC(ctx context.Context, pg *Postgres) error {
 			}
 			pvc.Spec.AccessModes = modes
 			pvc.Spec.StorageClassName = &storageClass
-			pvc.Spec.Resources = corev1.VolumeResourceRequirements{
-				Requests: corev1.ResourceList{
-					corev1.ResourceStorage: resource.MustParse(pg.Spec.Storage.Size),
-				},
-			}
+		}
+		pvc.Spec.Resources = corev1.VolumeResourceRequirements{
+			Requests: corev1.ResourceList{
+				corev1.ResourceStorage: resource.MustParse(pg.Spec.Storage.Size),
+			},
 		}
 		return nil
 	})

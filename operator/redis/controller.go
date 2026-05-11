@@ -76,11 +76,11 @@ func (r *Reconciler) reconcilePVC(ctx context.Context, redis *Redis) error {
 			}
 			pvc.Spec.AccessModes = modes
 			pvc.Spec.StorageClassName = &storageClass
-			pvc.Spec.Resources = corev1.VolumeResourceRequirements{
-				Requests: corev1.ResourceList{
-					corev1.ResourceStorage: resource.MustParse(redis.Spec.Storage.Size),
-				},
-			}
+		}
+		pvc.Spec.Resources = corev1.VolumeResourceRequirements{
+			Requests: corev1.ResourceList{
+				corev1.ResourceStorage: resource.MustParse(redis.Spec.Storage.Size),
+			},
 		}
 		return nil
 	})
