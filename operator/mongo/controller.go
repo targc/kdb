@@ -3,6 +3,7 @@ package mongo
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -108,7 +109,7 @@ func (r *Reconciler) reconcileIngressRouteTCP(ctx context.Context, mongo *Mongo)
 			"entryPoints": []interface{}{"tcp"},
 			"routes": []interface{}{
 				map[string]interface{}{
-					"match": fmt.Sprintf("HostSNI(`%s`)", mongo.Spec.Domain),
+					"match": hostSNIMatch(mongo.Spec.Domains),
 					"services": []interface{}{
 						map[string]interface{}{"name": mongo.Name, "port": int64(27017)},
 					},
@@ -182,6 +183,14 @@ func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&Mongo{}).
 		Complete(r)
+}
+
+func hostSNIMatch(domains []string) string {
+	parts := make([]string, len(domains))
+	for i, d := range domains {
+		parts[i] = fmt.Sprintf("`%s`", d)
+	}
+	return fmt.Sprintf("HostSNI(%s)", strings.Join(parts, ", "))
 }
 
 func wrap(resource string, err error) error {

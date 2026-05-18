@@ -21,11 +21,13 @@ spec:
           properties:
             spec:
               type: object
-              required: [domain, user, password, storage]
+              required: [domains, user, password, storage]
               properties:
-                domain:
-                  type: string
-                  description: HostSNI hostname for TCP routing
+                domains:
+                  type: array
+                  items:
+                    type: string
+                  description: HostSNI hostnames for TCP routing
                 user:
                   type: string
                   description: MONGO_INITDB_ROOT_USERNAME
@@ -63,9 +65,9 @@ spec:
                 phase:
                   type: string
       additionalPrinterColumns:
-        - name: Domain
+        - name: Domains
           type: string
-          jsonPath: .spec.domain
+          jsonPath: .spec.domains
         - name: Status
           type: string
           jsonPath: .status.phase

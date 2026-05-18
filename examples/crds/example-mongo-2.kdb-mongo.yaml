@@ -4,6 +4,7 @@ metadata:
   name: example-mongo-2
   namespace: default
 spec:
-  domain: test-mongo-2.tcplb.nortezh.com
+  domains:
+    - test-mongo-2.tcplb.nortezh.com
   user: mongo
   password: mongo

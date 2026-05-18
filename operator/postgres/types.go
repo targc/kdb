@@ -23,7 +23,7 @@ type StorageSpec struct {
 }
 
 type Spec struct {
-	Domain   string      `json:"domain"`
+	Domains  []string    `json:"domains"`
 	User     string      `json:"user"`
 	Password string      `json:"password"`
 	Image    string      `json:"image,omitempty"`
@@ -57,6 +57,10 @@ func (p *Postgres) DeepCopyInto(out *Postgres) {
 	*out = *p
 	p.ObjectMeta.DeepCopyInto(&out.ObjectMeta)
 	out.Spec = p.Spec
+	if p.Spec.Domains != nil {
+		out.Spec.Domains = make([]string, len(p.Spec.Domains))
+		copy(out.Spec.Domains, p.Spec.Domains)
+	}
 }
 
 func (pl *PostgresList) DeepCopyObject() runtime.Object {

@@ -3,6 +3,7 @@ package postgres
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -120,7 +121,7 @@ func (r *Reconciler) reconcileIngressRouteTCP(ctx context.Context, pg *Postgres)
 			"entryPoints": []interface{}{"tcp"},
 			"routes": []interface{}{
 				map[string]interface{}{
-					"match": fmt.Sprintf("HostSNI(`%s`)", pg.Spec.Domain),
+					"match": hostSNIMatch(pg.Spec.Domains),
 					"services": []interface{}{
 						map[string]interface{}{"name": pg.Name, "port": int64(5432)},
 					},
@@ -209,6 +210,14 @@ func mountPath(pg *Postgres) string {
 		return pg.Spec.Storage.MountPath
 	}
 	return "/var/lib/postgresql/data"
+}
+
+func hostSNIMatch(domains []string) string {
+	parts := make([]string, len(domains))
+	for i, d := range domains {
+		parts[i] = fmt.Sprintf("`%s`", d)
+	}
+	return fmt.Sprintf("HostSNI(%s)", strings.Join(parts, ", "))
 }
 
 func wrap(resource string, err error) error {

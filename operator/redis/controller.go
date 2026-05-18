@@ -3,6 +3,7 @@ package redis
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -108,7 +109,7 @@ func (r *Reconciler) reconcileIngressRouteTCP(ctx context.Context, redis *Redis)
 			"entryPoints": []interface{}{"tcp"},
 			"routes": []interface{}{
 				map[string]interface{}{
-					"match": fmt.Sprintf("HostSNI(`%s`)", redis.Spec.Domain),
+					"match": hostSNIMatch(redis.Spec.Domains),
 					"services": []interface{}{
 						map[string]interface{}{"name": redis.Name, "port": int64(6379)},
 					},
@@ -184,6 +185,14 @@ func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&Redis{}).
 		Complete(r)
+}
+
+func hostSNIMatch(domains []string) string {
+	parts := make([]string, len(domains))
+	for i, d := range domains {
+		parts[i] = fmt.Sprintf("`%s`", d)
+	}
+	return fmt.Sprintf("HostSNI(%s)", strings.Join(parts, ", "))
 }
 
 func wrap(resource string, err error) error {
