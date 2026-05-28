@@ -1,13 +1,17 @@
 package main
 
 import (
+	"context"
+	"net/http"
 	"os"
 
 	"k8s.io/apimachinery/pkg/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
+	"sigs.k8s.io/controller-runtime/pkg/manager"
 
+	"kdb.io/operator/metrics"
 	"kdb.io/operator/mongo"
 	"kdb.io/operator/postgres"
 	"kdb.io/operator/redis"
@@ -54,6 +58,20 @@ func main() {
 		ctrl.Log.Error(err, "unable to create mongo controller")
 		os.Exit(1)
 	}
+
+	// metrics endpoint
+	metricsHandler := metrics.NewHandler(mgr.GetClient())
+	mgr.Add(manager.RunnableFunc(func(ctx context.Context) error {
+		srv := &http.Server{Addr: ":9090", Handler: metricsHandler}
+		go func() {
+			<-ctx.Done()
+			srv.Shutdown(context.Background())
+		}()
+		if err := srv.ListenAndServe(); err != http.ErrServerClosed {
+			return err
+		}
+		return nil
+	}))
 
 	ctrl.Log.Info("starting manager")
 	if err := mgr.Start(ctrl.SetupSignalHandler()); err != nil {

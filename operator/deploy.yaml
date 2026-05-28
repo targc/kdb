@@ -24,6 +24,9 @@ rules:
     resources: ["deployments"]
     verbs: ["*"]
   - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["get", "list"]
+  - apiGroups: [""]
     resources: ["services", "persistentvolumeclaims"]
     verbs: ["*"]
   - apiGroups: ["traefik.io"]
@@ -62,3 +65,6 @@ spec:
       containers:
         - name: operator
           image: k3d-registry.localhost:5000/kdb-operator:latest
+          ports:
+            - containerPort: 9090
+              name: metrics
