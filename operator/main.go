@@ -60,7 +60,7 @@ func main() {
 	}
 
 	// metrics endpoint
-	metricsHandler := metrics.NewHandler(mgr.GetClient())
+	metricsHandler := metrics.NewHTTPHandler(mgr.GetClient())
 	mgr.Add(manager.RunnableFunc(func(ctx context.Context) error {
 		srv := &http.Server{Addr: ":9090", Handler: metricsHandler}
 		go func() {

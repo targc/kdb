@@ -8,3 +8,9 @@ spec:
     - test-mongo-2.tcplb.nortezh.com
   user: mongo
   password: mongo
+  storage:
+    pvcName: example-mongo-2-data
+    size: 1Gi
+    storageClass: local-path
+    accessModes:
+      - ReadWriteOnce

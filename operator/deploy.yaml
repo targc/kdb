@@ -68,3 +68,16 @@ spec:
           ports:
             - containerPort: 9090
               name: metrics
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: kdb-operator
+  namespace: kdb
+spec:
+  selector:
+    app: kdb-operator
+  ports:
+    - name: metrics
+      port: 9090
+      targetPort: metrics

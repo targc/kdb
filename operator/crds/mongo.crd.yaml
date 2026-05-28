@@ -46,7 +46,8 @@ spec:
                       description: Name of the PersistentVolumeClaim
                     size:
                       type: string
-                      description: Storage size (e.g. 1Gi)
+                      pattern: '^\d+(Mi|Gi)$'
+                      description: "Storage size (e.g. 512Mi, 1Gi)"
                     storageClass:
                       type: string
                       description: StorageClass name
