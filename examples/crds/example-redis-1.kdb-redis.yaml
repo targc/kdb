@@ -4,8 +4,6 @@ metadata:
   name: example-redis-1
   namespace: default
 spec:
-  domains:
-    - test-redis-1.tcplb.nortezh.com
   storage:
     pvcName: example-redis-1-data
     size: 1Gi

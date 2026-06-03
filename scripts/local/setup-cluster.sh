@@ -7,10 +7,11 @@ k3d cluster delete $CLUSTER_NAME 2>/dev/null || true
 k3d cluster create $CLUSTER_NAME \
 --image rancher/k3s:v1.31.11-k3s1 \
 --servers 1 \
---agents 1 \
+--agents 2 \
 --registry-use k3d-registry.localhost:5000 \
 --k3s-arg "--disable=traefik@server:*" \
--p "6060:6060@server:0" 
+-p "6100-6149:6100-6149@agent:0" \
+-p "6150-6199:6150-6199@agent:1"
 
 K3D_CLUSTER_NAME="k3d-$CLUSTER_NAME"
 

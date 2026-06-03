@@ -1,6 +1,6 @@
 #!/bin/bash
-# Setup for an existing cluster with tls-cert already applied.
-# Skips: cluster creation, TLS cert generation.
+# Setup for an existing cluster.
+# Skips: cluster creation.
 #
 # Usage (local):  IMAGE=your-registry/kdb-operator:latest bash scripts/staging/setup.sh
 # Usage (remote): curl -fsSL https://raw.githubusercontent.com/targc/kdb/main/scripts/staging/setup.sh | IMAGE=your-registry/kdb-operator:latest bash

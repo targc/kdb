@@ -23,7 +23,6 @@ type StorageSpec struct {
 }
 
 type Spec struct {
-	Domains  []string    `json:"domains"`
 	User     string      `json:"user"`
 	Password string      `json:"password"`
 	Image    string      `json:"image,omitempty"`
@@ -31,7 +30,10 @@ type Spec struct {
 }
 
 type Status struct {
-	Phase string `json:"phase,omitempty"`
+	Phase   string `json:"phase,omitempty"`
+	Port    int32  `json:"port,omitempty"`
+	Host    string `json:"host,omitempty"`
+	Message string `json:"message,omitempty"`
 }
 
 type Mongo struct {
@@ -57,10 +59,6 @@ func (m *Mongo) DeepCopyInto(out *Mongo) {
 	*out = *m
 	m.ObjectMeta.DeepCopyInto(&out.ObjectMeta)
 	out.Spec = m.Spec
-	if m.Spec.Domains != nil {
-		out.Spec.Domains = make([]string, len(m.Spec.Domains))
-		copy(out.Spec.Domains, m.Spec.Domains)
-	}
 }
 
 func (ml *MongoList) DeepCopyObject() runtime.Object {

@@ -18,10 +18,6 @@ fi
 # Deploy one Traefik instance per LB node, using its annotated port range
 for node in $(kubectl get nodes -l kdb/role=lb -o jsonpath='{.items[*].metadata.name}'); do
   range=$(kubectl get node "$node" -o jsonpath='{.metadata.annotations.kdb\.io/port-range}')
-  if [ -z "$range" ]; then
-    echo "Error: node $node missing annotation kdb.io/port-range" >&2
-    exit 1
-  fi
   min="${range%-*}"
   max="${range#*-}"
 

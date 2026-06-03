@@ -13,6 +13,7 @@ import (
 
 	"kdb.io/operator/metrics"
 	"kdb.io/operator/mongo"
+	"kdb.io/operator/portalloc"
 	"kdb.io/operator/postgres"
 	"kdb.io/operator/redis"
 )
@@ -35,25 +36,30 @@ func main() {
 		os.Exit(1)
 	}
 
+	portAllocator := portalloc.New(mgr.GetClient(), "kdb")
+
 	if err := (&postgres.Reconciler{
-		Client: mgr.GetClient(),
-		Scheme: mgr.GetScheme(),
+		Client:    mgr.GetClient(),
+		Scheme:    mgr.GetScheme(),
+		PortAlloc: portAllocator,
 	}).SetupWithManager(mgr); err != nil {
 		ctrl.Log.Error(err, "unable to create postgres controller")
 		os.Exit(1)
 	}
 
 	if err := (&redis.Reconciler{
-		Client: mgr.GetClient(),
-		Scheme: mgr.GetScheme(),
+		Client:    mgr.GetClient(),
+		Scheme:    mgr.GetScheme(),
+		PortAlloc: portAllocator,
 	}).SetupWithManager(mgr); err != nil {
 		ctrl.Log.Error(err, "unable to create redis controller")
 		os.Exit(1)
 	}
 
 	if err := (&mongo.Reconciler{
-		Client: mgr.GetClient(),
-		Scheme: mgr.GetScheme(),
+		Client:    mgr.GetClient(),
+		Scheme:    mgr.GetScheme(),
+		PortAlloc: portAllocator,
 	}).SetupWithManager(mgr); err != nil {
 		ctrl.Log.Error(err, "unable to create mongo controller")
 		os.Exit(1)

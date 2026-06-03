@@ -14,5 +14,5 @@ kubectl apply -f "$ROOT/operator/crds/"
 
 echo "Deploying operator..."
 kubectl apply -f "$ROOT/operator/deploy.yaml"
-kubectl rollout restart deployment/kdb-operator
-kubectl rollout status deployment/kdb-operator
+kubectl rollout restart -n kdb deployment/kdb-operator
+kubectl rollout status -n kdb deployment/kdb-operator

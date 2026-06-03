@@ -21,13 +21,8 @@ spec:
           properties:
             spec:
               type: object
-              required: [domains, storage]
+              required: [storage]
               properties:
-                domains:
-                  type: array
-                  items:
-                    type: string
-                  description: HostSNI hostnames for TCP routing
                 password:
                   type: string
                   description: Redis requirepass (optional)
@@ -62,10 +57,19 @@ spec:
               properties:
                 phase:
                   type: string
+                port:
+                  type: integer
+                host:
+                  type: string
+                message:
+                  type: string
       additionalPrinterColumns:
-        - name: Domains
+        - name: Host
           type: string
-          jsonPath: .spec.domains
+          jsonPath: .status.host
+        - name: Port
+          type: integer
+          jsonPath: .status.port
         - name: Status
           type: string
           jsonPath: .status.phase

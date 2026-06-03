@@ -4,9 +4,6 @@ metadata:
   name: example-pg-1
   namespace: default
 spec:
-  domains:
-    - test-pg-1.tcplb-1.nortezh.com
-    - test-pg-1.tcplb-2.nortezh.com
   user: postgres
   password: postgres
   storage:

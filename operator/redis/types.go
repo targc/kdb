@@ -23,14 +23,16 @@ type StorageSpec struct {
 }
 
 type Spec struct {
-	Domains  []string    `json:"domains"`
 	Password string      `json:"password,omitempty"`
 	Image    string      `json:"image,omitempty"`
 	Storage  StorageSpec `json:"storage"`
 }
 
 type Status struct {
-	Phase string `json:"phase,omitempty"`
+	Phase   string `json:"phase,omitempty"`
+	Port    int32  `json:"port,omitempty"`
+	Host    string `json:"host,omitempty"`
+	Message string `json:"message,omitempty"`
 }
 
 type Redis struct {
@@ -56,10 +58,6 @@ func (r *Redis) DeepCopyInto(out *Redis) {
 	*out = *r
 	r.ObjectMeta.DeepCopyInto(&out.ObjectMeta)
 	out.Spec = r.Spec
-	if r.Spec.Domains != nil {
-		out.Spec.Domains = make([]string, len(r.Spec.Domains))
-		copy(out.Spec.Domains, r.Spec.Domains)
-	}
 }
 
 func (rl *RedisList) DeepCopyObject() runtime.Object {

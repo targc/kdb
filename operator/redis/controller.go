@@ -3,7 +3,6 @@ package redis
 import (
 	"context"
 	"fmt"
-	"strings"
 
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -17,11 +16,14 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
+
+	"kdb.io/operator/portalloc"
 )
 
 type Reconciler struct {
 	client.Client
-	Scheme *runtime.Scheme
+	Scheme    *runtime.Scheme
+	PortAlloc *portalloc.Allocator
 }
 
 func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
@@ -33,6 +35,17 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		return ctrl.Result{}, fmt.Errorf("failed to get Redis: %w", err)
 	}
 
+	// Allocate port on LB node (idempotent — returns existing if already assigned)
+	alloc, err := r.PortAlloc.Allocate(ctx, req.NamespacedName.String())
+	if err != nil {
+		r.setPhase(ctx, redis, "Error", err.Error())
+		return ctrl.Result{}, fmt.Errorf("failed to allocate port: %w", err)
+	}
+	if redis.Status.Port == 0 {
+		redis.Status.Port = alloc.Port
+		redis.Status.Host = alloc.Host
+	}
+
 	image := redis.Spec.Image
 	if image == "" {
 		image = "redis:8"
@@ -40,7 +53,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 
 	for _, fn := range []func() error{
 		func() error { return r.reconcilePVC(ctx, redis) },
-		func() error { return r.reconcileIngressRouteTCP(ctx, redis) },
+		func() error { return r.reconcileIngressRouteTCP(ctx, redis, alloc) },
 		func() error { return r.reconcileService(ctx, redis) },
 		func() error { return r.reconcileDeployment(ctx, redis, image) },
 	} {
@@ -48,7 +61,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 			if errors.IsConflict(err) {
 				return ctrl.Result{Requeue: true}, nil
 			}
-			r.setPhase(ctx, redis, "Error")
+			r.setPhase(ctx, redis, "Error", err.Error())
 			return ctrl.Result{}, err
 		}
 	}
@@ -56,8 +69,13 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	return ctrl.Result{}, nil
 }
 
-func (r *Reconciler) setPhase(ctx context.Context, redis *Redis, phase string) {
+func (r *Reconciler) setPhase(ctx context.Context, redis *Redis, phase string, msgs ...string) {
 	redis.Status.Phase = phase
+	if len(msgs) > 0 {
+		redis.Status.Message = msgs[0]
+	} else {
+		redis.Status.Message = ""
+	}
 	if err := r.Status().Update(ctx, redis); err != nil {
 		ctrl.LoggerFrom(ctx).Error(err, "failed to update status", "phase", phase)
 	}
@@ -88,14 +106,7 @@ func (r *Reconciler) reconcilePVC(ctx context.Context, redis *Redis) error {
 	return wrap("PVC", err)
 }
 
-func mountPath(redis *Redis) string {
-	if redis.Spec.Storage.MountPath != "" {
-		return redis.Spec.Storage.MountPath
-	}
-	return "/data"
-}
-
-func (r *Reconciler) reconcileIngressRouteTCP(ctx context.Context, redis *Redis) error {
+func (r *Reconciler) reconcileIngressRouteTCP(ctx context.Context, redis *Redis, alloc *portalloc.Allocation) error {
 	obj := &unstructured.Unstructured{}
 	obj.SetGroupVersionKind(schema.GroupVersionKind{Group: "traefik.io", Version: "v1alpha1", Kind: "IngressRouteTCP"})
 	obj.SetName(redis.Name)
@@ -105,18 +116,16 @@ func (r *Reconciler) reconcileIngressRouteTCP(ctx context.Context, redis *Redis)
 		if err := controllerutil.SetControllerReference(redis, obj, r.Scheme); err != nil {
 			return err
 		}
+		obj.SetLabels(map[string]string{"kdb.io/lb-node": alloc.Node})
 		obj.Object["spec"] = map[string]interface{}{
-			"entryPoints": []interface{}{"tcp"},
+			"entryPoints": []interface{}{fmt.Sprintf("tcp-%d", alloc.Port)},
 			"routes": []interface{}{
 				map[string]interface{}{
-					"match": hostSNIMatch(redis.Spec.Domains),
+					"match": "HostSNI(`*`)",
 					"services": []interface{}{
 						map[string]interface{}{"name": redis.Name, "port": int64(6379)},
 					},
 				},
-			},
-			"tls": map[string]interface{}{
-				"secretName": "tls-cert",
 			},
 		}
 		return nil
@@ -187,12 +196,11 @@ func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 		Complete(r)
 }
 
-func hostSNIMatch(domains []string) string {
-	parts := make([]string, len(domains))
-	for i, d := range domains {
-		parts[i] = fmt.Sprintf("`%s`", d)
+func mountPath(redis *Redis) string {
+	if redis.Spec.Storage.MountPath != "" {
+		return redis.Spec.Storage.MountPath
 	}
-	return fmt.Sprintf("HostSNI(%s)", strings.Join(parts, ", "))
+	return "/data"
 }
 
 func wrap(resource string, err error) error {
