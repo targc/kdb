@@ -14,7 +14,7 @@ A local k3d cluster for testing Traefik TCP load balancing in front of PostgreSQ
 bash scripts/local/setup.sh                                             # create cluster + install Traefik + apply cert
 
 # Staging (existing cluster)
-IMAGE=your-registry/kdb-operator:latest bash scripts/staging/setup.sh   # install Traefik + deploy operator
+IMAGE=ghcr.io/targc/kdb-operator:latest bash scripts/staging/setup.sh   # install Traefik + deploy operator
 
 # Deploy resources
 kubectl apply -f examples/crds/example-pg-1.kdb-postgres.yaml           # deploy PostgreSQL (via operator CRD)

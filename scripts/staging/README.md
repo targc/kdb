@@ -37,7 +37,7 @@ No configuration needed. Any node without the LB label runs database pods.
 ## Install
 
 ```bash
-IMAGE=your-registry/kdb-operator:latest bash scripts/staging/setup.sh
+IMAGE=ghcr.io/targc/kdb-operator:latest bash scripts/staging/setup.sh
 ```
 
 
@@ -61,7 +61,7 @@ bash scripts/staging/setup-traefik.sh
 
 ```bash
 # Build and push new image
-IMAGE=your-registry/kdb-operator:latest bash scripts/staging/build-operator.sh
+IMAGE=ghcr.io/targc/kdb-operator:latest bash scripts/staging/build-operator.sh
 
 # Restart operator with new image
 kubectl set image deployment/kdb-operator operator=$IMAGE -n kdb
