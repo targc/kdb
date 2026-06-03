@@ -1,17 +1,40 @@
 #!/bin/bash
 # Generates traefik-values.yaml with pre-allocated TCP entrypoints.
 #
-# For local (single LB node):
-#   bash scripts/generate-traefik-values.sh 6100 6199 > scripts/local/traefik-values.yaml
+# Usage:
+#   bash scripts/generate-traefik-values.sh <min> <max> [node-name]
+#   bash scripts/generate-traefik-values.sh <range1,range2,...> [node-name]
 #
-# For staging (per LB node):
-#   bash scripts/generate-traefik-values.sh 6100 6199 node-a > scripts/staging/traefik-values-node-a.yaml
+# Examples:
+#   bash scripts/generate-traefik-values.sh 6100 6199
+#   bash scripts/generate-traefik-values.sh 6100-6149,6200-6249 node-a
 
-MIN_PORT=${1:-6100}
-MAX_PORT=${2:-6199}
-NODE_NAME=${3:-}
+# Parse args: support both "min max [node]" and "ranges [node]" formats
+if echo "$1" | grep -q '[,-]' 2>/dev/null && [ -z "$3" ]; then
+  # Format: "6100-6149,6200-6249" [node-name]
+  RANGES="$1"
+  NODE_NAME="${2:-}"
+else
+  # Format: min max [node-name]
+  RANGES="${1:-6100}-${2:-6199}"
+  NODE_NAME="${3:-}"
+fi
+
 TAINT_KEY=${KDB_TAINT_KEY:-"kdb/role"}
 TAINT_VALUE=${KDB_TAINT_VALUE:-"lb"}
+
+# Expand ranges into port list
+expand_ports() {
+  local ranges="$1"
+  IFS=',' read -ra parts <<< "$ranges"
+  for part in "${parts[@]}"; do
+    local min="${part%-*}"
+    local max="${part#*-}"
+    seq "$min" "$max"
+  done
+}
+
+PORTS=$(expand_ports "$RANGES")
 
 cat <<EOF
 image:
@@ -39,7 +62,7 @@ service:
 ports:
 EOF
 
-for port in $(seq $MIN_PORT $MAX_PORT); do
+for port in $PORTS; do
   cat <<EOF
   tcp-${port}:
     port: ${port}
@@ -50,7 +73,7 @@ done
 
 echo ""
 echo "additionalArguments:"
-for port in $(seq $MIN_PORT $MAX_PORT); do
+for port in $PORTS; do
   echo "  - \"--entrypoints.tcp-${port}.address=:${port}\""
 done
 

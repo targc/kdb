@@ -22,11 +22,9 @@ for node in $(kubectl get nodes -l kdb/role=lb -o jsonpath='{.items[*].metadata.
     echo "Error: node $node missing annotation kdb.io/port-range" >&2
     exit 1
   fi
-  min="${range%-*}"
-  max="${range#*-}"
 
-  echo "Deploying Traefik for LB node: $node (ports $min-$max)"
-  bash "$GENERATE_SCRIPT" "$min" "$max" "$node" | \
+  echo "Deploying Traefik for LB node: $node (ports $range)"
+  bash "$GENERATE_SCRIPT" "$range" "$node" | \
     helm upgrade --install "kdb-traefik-$node" traefik/traefik \
       --version "$TRAEFIK_CHART_VERSION" \
       --namespace kdb \

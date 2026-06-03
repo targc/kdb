@@ -99,27 +99,28 @@ func (a *Allocator) tryAllocate(ctx context.Context, resourceKey string) (*Alloc
 		}
 	}
 
-	// Find first node with a free port (respecting per-node port range)
+	// Find first node with a free port (respecting per-node port ranges)
 	for _, n := range lbNodes {
 		used := usedPerNode[n.Name]
-		minP, maxP := a.nodePortRange(n)
-		for port := minP; port <= maxP; port++ {
-			if !used[port] {
-				allocKey := fmt.Sprintf("%s_%d", n.Name, port)
-				if cm.Data == nil {
-					cm.Data = make(map[string]string)
+		for _, r := range a.nodePortRanges(n) {
+			for port := r.min; port <= r.max; port++ {
+				if !used[port] {
+					allocKey := fmt.Sprintf("%s_%d", n.Name, port)
+					if cm.Data == nil {
+						cm.Data = make(map[string]string)
+					}
+					cm.Data[allocKey] = resourceKey
+					if err := a.client.Update(ctx, cm); err != nil {
+						return nil, err
+					}
+					host := nodeHost(n)
+					return &Allocation{Node: n.Name, Host: host, Port: port}, nil
 				}
-				cm.Data[allocKey] = resourceKey
-				if err := a.client.Update(ctx, cm); err != nil {
-					return nil, err
-				}
-				host := nodeHost(n)
-				return &Allocation{Node: n.Name, Host: host, Port: port}, nil
 			}
 		}
 	}
 
-	return nil, fmt.Errorf("no free ports on any LB node (range %d-%d)", a.minPort, a.maxPort)
+	return nil, fmt.Errorf("no free ports on any LB node")
 }
 
 // Release frees the allocation for the given resource.
@@ -141,16 +142,20 @@ func (a *Allocator) Release(ctx context.Context, resourceKey string) error {
 	return nil
 }
 
-// nodePortRange returns the port range for a node.
-// Uses annotation kdb.io/port-range if set, otherwise falls back to global range.
-func (a *Allocator) nodePortRange(node corev1.Node) (int32, int32) {
+type portRange struct {
+	min, max int32
+}
+
+// nodePortRanges returns the port ranges for a node.
+// Uses annotation kdb.io/port-range (comma-separated) if set, otherwise falls back to global range.
+func (a *Allocator) nodePortRanges(node corev1.Node) []portRange {
 	if ann, ok := node.Annotations[portRangeAnnotation]; ok {
-		min, max := parseRange(ann)
-		if min > 0 && max > 0 {
-			return min, max
+		ranges := parseRanges(ann)
+		if len(ranges) > 0 {
+			return ranges
 		}
 	}
-	return a.minPort, a.maxPort
+	return []portRange{{min: a.minPort, max: a.maxPort}}
 }
 
 func (a *Allocator) getLBNodes(ctx context.Context) ([]corev1.Node, error) {
@@ -214,6 +219,27 @@ func parseKey(key string) (string, int32) {
 	}
 	port, _ := strconv.ParseInt(key[i+1:], 10, 32)
 	return key[:i], int32(port)
+}
+
+// parseRanges parses comma-separated port ranges like "6100-6149,6200-6249".
+func parseRanges(s string) []portRange {
+	if s == "" {
+		return nil
+	}
+	var ranges []portRange
+	for _, part := range strings.Split(s, ",") {
+		part = strings.TrimSpace(part)
+		pieces := strings.SplitN(part, "-", 2)
+		if len(pieces) != 2 {
+			continue
+		}
+		min, _ := strconv.ParseInt(pieces[0], 10, 32)
+		max, _ := strconv.ParseInt(pieces[1], 10, 32)
+		if min > 0 && max >= min {
+			ranges = append(ranges, portRange{min: int32(min), max: int32(max)})
+		}
+	}
+	return ranges
 }
 
 func parseRange(s string) (int32, int32) {

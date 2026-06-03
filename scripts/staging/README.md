@@ -6,7 +6,7 @@
 
 ```bash
 export KDB_LB_NODE_NAME=lb-1
-export KDB_PORT_RANGE=6100-6199
+export KDB_PORT_RANGE=6100-6199  # supports multi ranges: 6100-6149,6200-6249
 export KDB_HOST=lb-1.example.com
 export KDB_TAINT_KEY=kdb/role
 export KDB_TAINT_VALUE=lb
