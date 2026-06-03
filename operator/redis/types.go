@@ -23,7 +23,7 @@ type StorageSpec struct {
 }
 
 type Spec struct {
-	Password string      `json:"password,omitempty"`
+	Password string      `json:"password"`
 	Image    string      `json:"image,omitempty"`
 	Storage  StorageSpec `json:"storage"`
 }

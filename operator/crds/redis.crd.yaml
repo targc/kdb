@@ -21,11 +21,11 @@ spec:
           properties:
             spec:
               type: object
-              required: [storage]
+              required: [password, storage]
               properties:
                 password:
                   type: string
-                  description: Redis requirepass (optional)
+                  description: Redis requirepass
                 image:
                   type: string
                   description: Docker image (default redis:8)

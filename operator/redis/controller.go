@@ -166,9 +166,7 @@ func (r *Reconciler) reconcileDeployment(ctx context.Context, redis *Redis, imag
 			Image: image,
 			Ports: []corev1.ContainerPort{{ContainerPort: 6379}},
 		}
-		if redis.Spec.Password != "" {
-			container.Args = []string{"--requirepass", redis.Spec.Password}
-		}
+		container.Args = []string{"--requirepass", redis.Spec.Password}
 
 		container.VolumeMounts = []corev1.VolumeMount{{Name: "data", MountPath: mountPath(redis)}}
 		dep.Spec.Template = corev1.PodTemplateSpec{
