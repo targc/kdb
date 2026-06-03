@@ -37,7 +37,10 @@ No configuration needed. Any node without the LB label runs database pods.
 ## Install
 
 ```bash
-IMAGE=ghcr.io/targc/kdb-operator:latest bash scripts/staging/setup.sh
+IMAGE=ghcr.io/targc/kdb-operator:latest \
+  KDB_TAINT_KEY=$KDB_TAINT_KEY \
+  KDB_TAINT_VALUE=$KDB_TAINT_VALUE \
+  bash scripts/staging/setup.sh
 ```
 
 
@@ -54,7 +57,7 @@ kubectl annotate node $KDB_LB_NODE_NAME kdb.io/host=$KDB_HOST
 kubectl taint node $KDB_LB_NODE_NAME ${KDB_TAINT_KEY}=${KDB_TAINT_VALUE}:NoSchedule
 
 # Deploy Traefik on new node
-bash scripts/staging/setup-traefik.sh
+KDB_TAINT_KEY=$KDB_TAINT_KEY KDB_TAINT_VALUE=$KDB_TAINT_VALUE bash scripts/staging/setup-traefik.sh
 ```
 
 ## Update Operator
