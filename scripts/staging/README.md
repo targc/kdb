@@ -8,11 +8,13 @@
 export KDB_LB_NODE_NAME=lb-1
 export KDB_PORT_RANGE=6100-6199
 export KDB_HOST=lb-1.example.com
+export KDB_TAINT_KEY=kdb/role
+export KDB_TAINT_VALUE=lb
 
-kubectl label node $KDB_LB_NODE_NAME kdb/role=lb
+kubectl label node $KDB_LB_NODE_NAME ${KDB_TAINT_KEY}=${KDB_TAINT_VALUE}
 kubectl annotate node $KDB_LB_NODE_NAME kdb.io/port-range=$KDB_PORT_RANGE
 kubectl annotate node $KDB_LB_NODE_NAME kdb.io/host=$KDB_HOST
-kubectl taint node $KDB_LB_NODE_NAME kdb/role=lb:NoSchedule
+kubectl taint node $KDB_LB_NODE_NAME ${KDB_TAINT_KEY}=${KDB_TAINT_VALUE}:NoSchedule
 ```
 
 Repeat for each LB node with a unique port range:
@@ -22,21 +24,22 @@ export KDB_LB_NODE_NAME=lb-2
 export KDB_PORT_RANGE=6200-6299
 export KDB_HOST=lb-2.example.com
 
-kubectl label node $KDB_LB_NODE_NAME kdb/role=lb
+kubectl label node $KDB_LB_NODE_NAME ${KDB_TAINT_KEY}=${KDB_TAINT_VALUE}
 kubectl annotate node $KDB_LB_NODE_NAME kdb.io/port-range=$KDB_PORT_RANGE
 kubectl annotate node $KDB_LB_NODE_NAME kdb.io/host=$KDB_HOST
-kubectl taint node $KDB_LB_NODE_NAME kdb/role=lb:NoSchedule
+kubectl taint node $KDB_LB_NODE_NAME ${KDB_TAINT_KEY}=${KDB_TAINT_VALUE}:NoSchedule
 ```
 
 ### Workload Nodes
 
-No configuration needed. Any node without `kdb/role=lb` runs database pods.
+No configuration needed. Any node without the LB label runs database pods.
 
 ## Install
 
 ```bash
 IMAGE=your-registry/kdb-operator:latest bash scripts/staging/setup.sh
 ```
+
 
 ## Scale (add more loadbalancer)
 
@@ -45,10 +48,10 @@ export KDB_LB_NODE_NAME=lb-3
 export KDB_PORT_RANGE=6300-6399
 export KDB_HOST=lb-3.example.com
 
-kubectl label node $KDB_LB_NODE_NAME kdb/role=lb
+kubectl label node $KDB_LB_NODE_NAME ${KDB_TAINT_KEY}=${KDB_TAINT_VALUE}
 kubectl annotate node $KDB_LB_NODE_NAME kdb.io/port-range=$KDB_PORT_RANGE
 kubectl annotate node $KDB_LB_NODE_NAME kdb.io/host=$KDB_HOST
-kubectl taint node $KDB_LB_NODE_NAME kdb/role=lb:NoSchedule
+kubectl taint node $KDB_LB_NODE_NAME ${KDB_TAINT_KEY}=${KDB_TAINT_VALUE}:NoSchedule
 
 # Deploy Traefik on new node
 bash scripts/staging/setup-traefik.sh

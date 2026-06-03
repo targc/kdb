@@ -10,6 +10,8 @@
 MIN_PORT=${1:-6100}
 MAX_PORT=${2:-6199}
 NODE_NAME=${3:-}
+TAINT_KEY=${KDB_TAINT_KEY:-"kdb/role"}
+TAINT_VALUE=${KDB_TAINT_VALUE:-"lb"}
 
 cat <<EOF
 image:
@@ -64,8 +66,8 @@ nodeSelector:
   kubernetes.io/hostname: ${NODE_NAME}
 
 tolerations:
-  - key: "kdb/role"
-    value: "lb"
+  - key: "${TAINT_KEY}"
+    value: "${TAINT_VALUE}"
     operator: "Equal"
     effect: "NoSchedule"
 EOF
