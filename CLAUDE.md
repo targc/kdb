@@ -10,7 +10,13 @@ A local k3d cluster for testing Traefik TCP load balancing in front of PostgreSQ
 - **Port mapping**: host `6060` → k3d server node `6060` (via `k3d-kdb-local-serverlb`)
 
 ```bash
-bash start.sh                                                            # create cluster + install Traefik + apply cert
+# Local (k3d)
+bash scripts/local/setup.sh                                             # create cluster + install Traefik + apply cert
+
+# Staging (existing cluster)
+IMAGE=your-registry/kdb-operator:latest bash scripts/staging/setup.sh   # install Traefik + deploy operator
+
+# Deploy resources
 kubectl apply -f examples/crds/example-pg-1.kdb-postgres.yaml           # deploy PostgreSQL (via operator CRD)
 kubectl apply -f examples/crds/example-mongo-1.kdb-mongo.yaml           # deploy MongoDB (via operator CRD)
 kubectl apply -f examples/crds/example-redis-1.kdb-redis.yaml           # deploy Redis (via operator CRD)
@@ -75,14 +81,14 @@ See `docs/traefik-tcp-mongo-tls.md` and `docs/traefik-tcp-redis-tls.md`.
 ## TLS cert
 
 Cloudflare Origin Certificate stored as `tls-cert` secret in `default` namespace.
-Source file: `tmp/tls-cert.secret.yaml` (applied by `setup-trafik-daemonset.sh`).
+Source file: `tmp/tls-cert.secret.yaml` (applied by `scripts/local/setup-trafik-daemonset.sh`).
 
 The cert **must cover the HostSNI hostname** (Traefik indexes certs by SAN, not by IngressRouteTCP hostname).
 If the cert doesn't match, Traefik falls back to its default cert → STARTTLS breaks.
 
 ```bash
 # Recreate from cert files (Cloudflare Origin cert for *.tcplb.nortezh.com)
-bash create-tls-cert.sh cert.pem key.pem
+bash scripts/local/create-tls-cert.sh cert.pem key.pem
 ```
 
 Current cert covers: `*.nortezh.com`, `*.tcplb.nortezh.com`, `nortezh.com`

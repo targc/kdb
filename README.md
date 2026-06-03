@@ -107,7 +107,7 @@ The cert must cover all `spec.domain` hostnames (Traefik matches by SAN, not by 
 
 ```bash
 # Create secret from cert files (e.g. Cloudflare Origin cert for *.tcplb.example.com)
-bash scripts/create-tls-cert.sh cert.pem key.pem
+bash scripts/local/create-tls-cert.sh cert.pem key.pem
 ```
 
 > Cloudflare Origin Certificates are only trusted by Cloudflare's edge. For direct client connections, pass `sslmode=require` (psql) or `tlsAllowInvalidCertificates=true` (mongosh) to skip CA verification.
@@ -132,7 +132,7 @@ redis-cli -h my-redis.tcplb.example.com -p 6060 --tls --insecure --sni my-redis.
 ## Local development
 
 ```bash
-bash scripts/start.sh                              # create k3d cluster + install Traefik
+bash scripts/local/setup.sh                        # create k3d cluster + install Traefik
 kubectl apply -f examples/crds/example-pg-1.kdb-postgres.yaml
 kubectl apply -f examples/crds/example-mongo-1.kdb-mongo.yaml
 kubectl apply -f examples/crds/example-redis-1.kdb-redis.yaml
