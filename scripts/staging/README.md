@@ -37,10 +37,11 @@ No configuration needed. Any node without the LB label runs database pods.
 ## Install
 
 ```bash
-IMAGE=ghcr.io/targc/kdb-operator:latest \
+curl -fsSL https://raw.githubusercontent.com/targc/kdb/main/scripts/staging/setup.sh | \
+  IMAGE=ghcr.io/targc/kdb-operator:latest \
   KDB_TAINT_KEY=$KDB_TAINT_KEY \
   KDB_TAINT_VALUE=$KDB_TAINT_VALUE \
-  bash scripts/staging/setup.sh
+  bash
 ```
 
 
@@ -63,12 +64,6 @@ KDB_TAINT_KEY=$KDB_TAINT_KEY KDB_TAINT_VALUE=$KDB_TAINT_VALUE bash scripts/stagi
 ## Update Operator
 
 ```bash
-# Build and push new image
-IMAGE=ghcr.io/targc/kdb-operator:latest bash scripts/staging/build-operator.sh
-
-# Restart operator with new image
-kubectl set image deployment/kdb-operator operator=$IMAGE -n kdb
-kubectl rollout restart deployment/kdb-operator -n kdb
-kubectl rollout status deployment/kdb-operator -n kdb
-kubectl apply -f operator/crds/
+curl -fsSL https://raw.githubusercontent.com/targc/kdb/main/scripts/staging/setup-operator.sh | \
+  IMAGE=ghcr.io/targc/kdb-operator:latest bash
 ```

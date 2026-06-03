@@ -1,7 +1,18 @@
 #!/bin/bash
 set -e
 
-ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
+# When run via curl (pipe or process substitution), clone and re-exec.
+if [ ! -f "$(dirname "${BASH_SOURCE[0]}")/setup-traefik.sh" ]; then
+  REPO="https://github.com/targc/kdb"
+  TMPDIR="$(mktemp -d)"
+  trap 'rm -rf "$TMPDIR"' EXIT
+  echo "Cloning $REPO..."
+  git clone --depth=1 "$REPO" "$TMPDIR/kdb"
+  IMAGE="$IMAGE" NAMESPACE="$NAMESPACE" bash "$TMPDIR/kdb/scripts/staging/setup-operator.sh"
+  exit $?
+fi
+
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 IMAGE="${IMAGE:?IMAGE is required, e.g. IMAGE=your-registry/kdb-operator:latest}"
 NAMESPACE="${NAMESPACE:-kdb}"
 

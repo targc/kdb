@@ -4,7 +4,6 @@ metadata:
   name: example-redis-1
   namespace: default
 spec:
-  user: redis
   password: password
   storage:
     pvcName: example-redis-1-data
