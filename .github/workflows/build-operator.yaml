@@ -2,8 +2,8 @@ name: Build Operator
 
 on:
   push:
-    tags:
-      - 'v*'
+    branches:
+      - main
 
 jobs:
   build:
@@ -25,4 +25,4 @@ jobs:
         with:
           context: operator
           push: true
-          tags: ghcr.io/${{ github.repository_owner }}/kdb-operator:${{ github.ref_name }}
+          tags: ghcr.io/${{ github.repository_owner }}/kdb-operator:${{ github.sha }}
