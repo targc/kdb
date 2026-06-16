@@ -159,6 +159,14 @@ func (r *Reconciler) reconcileDeployment(ctx context.Context, pg *Postgres, imag
 		if dep.CreationTimestamp.IsZero() {
 			dep.Spec.Selector = &metav1.LabelSelector{MatchLabels: labels}
 		}
+		env := []corev1.EnvVar{
+			{Name: "POSTGRES_USER", Value: pg.Spec.User},
+			{Name: "POSTGRES_PASSWORD", Value: pg.Spec.Password},
+			{Name: "PGDATA", Value: mountPath(pg) + "/pgdata"},
+		}
+		if pg.Spec.Database != "" {
+			env = append(env, corev1.EnvVar{Name: "POSTGRES_DB", Value: pg.Spec.Database})
+		}
 		dep.Spec.Replicas = &replicas
 		dep.Spec.Template = corev1.PodTemplateSpec{
 			ObjectMeta: metav1.ObjectMeta{Labels: labels},
@@ -167,11 +175,7 @@ func (r *Reconciler) reconcileDeployment(ctx context.Context, pg *Postgres, imag
 					Name:  "postgres",
 					Image: image,
 					Ports: []corev1.ContainerPort{{ContainerPort: 5432}},
-					Env: []corev1.EnvVar{
-						{Name: "POSTGRES_USER", Value: pg.Spec.User},
-						{Name: "POSTGRES_PASSWORD", Value: pg.Spec.Password},
-						{Name: "PGDATA", Value: mountPath(pg) + "/pgdata"},
-					},
+					Env:   env,
 					VolumeMounts: []corev1.VolumeMount{{
 						Name:      "data",
 						MountPath: mountPath(pg),

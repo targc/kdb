@@ -29,6 +29,9 @@ spec:
                 password:
                   type: string
                   description: POSTGRES_PASSWORD
+                database:
+                  type: string
+                  description: POSTGRES_DB (default postgres)
                 image:
                   type: string
                   description: Docker image (default postgres:16)

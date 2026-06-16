@@ -25,6 +25,7 @@ type StorageSpec struct {
 type Spec struct {
 	User     string      `json:"user"`
 	Password string      `json:"password"`
+	Database string      `json:"database,omitempty"`
 	Image    string      `json:"image,omitempty"`
 	Storage  StorageSpec `json:"storage"`
 }
