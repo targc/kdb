@@ -1,8 +1,8 @@
 # kdb
 
-A Kubernetes operator that provisions TLS-terminated TCP load balancers for PostgreSQL, MongoDB, and Redis using Traefik.
+A Kubernetes operator that provisions **PostgreSQL, MongoDB, and Redis** instances and exposes each one through a **Traefik TCP load balancer**. Every database gets a single, fixed **`(node, port)` endpoint** — raw TCP passthrough, no TLS termination at the proxy.
 
-Create a database instance with a single manifest:
+Create a database with a single manifest:
 
 ```yaml
 apiVersion: kdb.io/v1alpha1
@@ -11,9 +11,9 @@ metadata:
   name: my-pg
   namespace: default
 spec:
-  domain: my-pg.tcplb.example.com
   user: postgres
   password: postgres
+  # database: myapp        # optional — sets POSTGRES_DB
   storage:
     pvcName: my-pg-data
     size: 10Gi
@@ -22,125 +22,111 @@ spec:
       - ReadWriteOnce
 ```
 
-The operator creates a PVC, Deployment, Service, and Traefik `IngressRouteTCP` — the database is immediately reachable at `my-pg.tcplb.example.com:6060` over TLS.
+The operator creates a `PVC`, `Deployment`, `Service`, and a Traefik `IngressRouteTCP`, then allocates a port on a load-balancer node. The assigned endpoint is written back to the resource status:
+
+```bash
+$ kubectl get postgres my-pg
+NAME    HOST            PORT   STATUS    AGE
+my-pg   lb-1.host.com   6100   Running   30s
+# connect to lb-1.host.com:6100
+```
 
 ## How it works
 
 ```
 Client (psql / mongosh / redis-cli)
-  └─► :6060 (Traefik DaemonSet, hostPort)
-        └─► IngressRouteTCP — routes by HostSNI
-              └─► TLS termination
-                    └─► Database pod (plain TCP)
+  └─► <node-host>:<allocated-port>          # LB node, host network
+        └─► Traefik (one per LB node, hostPort entrypoint tcp-<port>)
+              └─► IngressRouteTCP — match HostSNI(`*`), labeled kdb.io/lb-node=<node>
+                    └─► Service ─► Database pod   # plain TCP, no TLS
 ```
 
-Traefik routes traffic by the SNI hostname in the TLS handshake. Each `kdb.io` resource gets its own `IngressRouteTCP` rule matching its `spec.domain`.
+- **One endpoint per database.** A port is allocated from the LB node's range and is **fixed for the life of the resource** — `status.host`/`status.port` are set once and never change.
+- **Routing is by port, not hostname.** Each `IngressRouteTCP` uses entrypoint `tcp-<port>` + `HostSNI(\`*\`)`, and is labeled `kdb.io/lb-node=<node>` so only that node's Traefik serves it.
+- **Allocation state** lives in the ConfigMap `kdb-port-allocations` (namespace `kdb`): key `<node>_<port>` → `<namespace>/<resource>`.
 
 ## Supported resources
 
-| Kind | API | Required fields | Default image | Default mountPath |
-|------|-----|----------------|---------------|-------------------|
-| `Postgres` | `kdb.io/v1alpha1` | `domain`, `user`, `password`, `storage` | `postgres:16` | `/var/lib/postgresql/data` |
-| `Mongo` | `kdb.io/v1alpha1` | `domain`, `user`, `password`, `storage` | `mongo:8.2` | `/data/db` |
-| `Redis` | `kdb.io/v1alpha1` | `domain`, `storage` | `redis:8` | `/data` |
+| Kind | API | Required spec | Default image | Default mountPath | Internal port |
+|------|-----|---------------|---------------|-------------------|---------------|
+| `Postgres` | `kdb.io/v1alpha1` | `user`, `password`, `storage` | `postgres:16` | `/var/lib/postgresql/data` | 5432 |
+| `Mongo` | `kdb.io/v1alpha1` | `user`, `password`, `storage` | `mongo:8.2` | `/data/db` | 27017 |
+| `Redis` | `kdb.io/v1alpha1` | `password`, `storage` | `redis:8` | `/data` | 6379 |
 
-All resources accept optional `image` and `storage.mountPath` fields.
+Optional fields: `image`, `storage.mountPath`. Postgres also accepts `database` (→ `POSTGRES_DB`). Short names: `pg`, `mg`, `rd`.
 
 The `storage` block is required for all resources:
 
 ```yaml
 storage:
-  pvcName: <name>        # required — name of the PVC to create
-  size: 10Gi             # required
-  storageClass: local-path  # required
-  accessModes:           # required — enum: ReadWriteOnce, ReadOnlyMany, ReadWriteMany, ReadWriteOncePod
+  pvcName: <name>           # required — name of the PVC to create
+  size: 10Gi                # required — pattern ^\d+(Mi|Gi)$
+  storageClass: local-path  # required (local-path is the k3d default)
+  accessModes:              # required — ReadWriteOnce | ReadOnlyMany | ReadWriteMany | ReadWriteOncePod
     - ReadWriteOnce
-  mountPath: /data       # optional — defaults to the per-resource path above
+  mountPath: /data          # optional — defaults to the per-resource path above
 ```
+
+> The PVC is created on first reconcile and **never updated** (PVC spec is immutable after creation).
 
 ## Prerequisites
 
-- Kubernetes cluster with Traefik v3.6.8 installed as a DaemonSet (see [Staging setup](#staging-setup))
-- A TLS certificate covering your `spec.domain` hostnames, stored as secret `tls-cert` in the `default` namespace
-- DNS pointing your domains to the node running Traefik
+- A Kubernetes cluster with **Traefik v3.6.8** (chart `39.0.2`) installed on the load-balancer nodes (the setup scripts handle this).
+- One or more **LB nodes**, each:
+  - labeled **`kdb/role=lb`** (used by the operator to discover them), and
+  - annotated **`kdb.io/port-range`** (e.g. `6100-6199`, or multi-range `6100-6149,6200-6249`).
+  - Optionally annotated **`kdb.io/host=<public-host>`** — becomes the resource's `status.host` (falls back to the node's InternalIP).
 
-> **Note:** Traefik v3.6.9+ has a regression in PostgreSQL STARTTLS handling — pin to v3.6.8.
+> **Note:** Traefik **v3.6.9+ has a PostgreSQL STARTTLS regression** — the scripts pin **v3.6.8**.
 
-## Staging setup
+## Staging / production setup
 
-For an existing cluster with `tls-cert` already applied:
+For an existing cluster:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/targc/kdb/main/scripts/staging/setup.sh | IMAGE=ghcr.io/targc/kdb-operator:latest bash
+curl -fsSL https://raw.githubusercontent.com/targc/kdb/main/scripts/staging/setup.sh \
+  | IMAGE=ghcr.io/targc/kdb-operator:latest bash
 ```
 
-Environment variables:
+The script installs Traefik (one instance per LB node) and deploys the operator. Environment variables:
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `IMAGE` | — | Operator image to deploy (required) |
-| `SKIP_TRAEFIK` | `false` | Skip Traefik installation |
-| `SKIP_TOLERATIONS` | `false` | Skip node tolerations in Traefik Helm values |
-| `BUILD_OPERATOR_IMAGE` | `false` | Build the operator image locally before deploying |
+| `IMAGE` | — | Operator image to deploy (**required**) |
+| `BUILD_OPERATOR_IMAGE` | `false` | Build & push the operator image locally before deploying |
+| `NAMESPACE` | `kdb` | Namespace to deploy the operator into |
+| `KDB_TAINT_KEY` / `KDB_TAINT_VALUE` | `kdb/role` / `lb` | Taint the LB nodes carry, tolerated by Traefik |
+
+## Local development (k3d)
 
 ```bash
-# Skip Traefik if already installed
-IMAGE=ghcr.io/targc/kdb-operator:latest SKIP_TRAEFIK=true bash <(curl -fsSL ...)
+bash scripts/local/setup.sh            # create k3d cluster, label LB nodes, install Traefik, deploy operator, apply examples
 
-# Skip tolerations (e.g. cluster with no tainted nodes)
-IMAGE=ghcr.io/targc/kdb-operator:latest SKIP_TOLERATIONS=true bash <(curl -fsSL ...)
-```
-
-The script clones this repo to a temp dir, installs Traefik via Helm, and deploys the operator.
-
-### Traefik node labeling
-
-Traefik runs only on nodes labeled `kdb/role=lb`:
-
-```bash
-kubectl label node <node-name> kdb/role=lb
-```
-
-## TLS certificate
-
-The cert must cover all `spec.domain` hostnames (Traefik matches by SAN, not by `IngressRouteTCP` hostname).
-
-```bash
-# Create secret from cert files (e.g. Cloudflare Origin cert for *.tcplb.example.com)
-bash scripts/local/create-tls-cert.sh cert.pem key.pem
-```
-
-> Cloudflare Origin Certificates are only trusted by Cloudflare's edge. For direct client connections, pass `sslmode=require` (psql) or `tlsAllowInvalidCertificates=true` (mongosh) to skip CA verification.
-
-## Test connections
-
-```bash
-# PostgreSQL
-docker run --rm \
-  --add-host="my-pg.tcplb.example.com:<node-ip>" \
-  -e PGPASSWORD=postgres postgres:16 \
-  psql "host=my-pg.tcplb.example.com port=6060 user=postgres dbname=postgres sslmode=require" \
-  -c "SELECT version();"
-
-# MongoDB
-mongosh "mongodb://mongo:mongo@my-mongo.tcplb.example.com:6060/?tls=true&tlsAllowInvalidCertificates=true"
-
-# Redis (must pass --sni explicitly — redis-cli skips SNI for loopback addresses)
-redis-cli -h my-redis.tcplb.example.com -p 6060 --tls --insecure --sni my-redis.tcplb.example.com ping
-```
-
-## Local development
-
-```bash
-bash scripts/local/setup.sh                        # create k3d cluster + install Traefik
 kubectl apply -f examples/crds/example-pg-1.kdb-postgres.yaml
 kubectl apply -f examples/crds/example-mongo-1.kdb-mongo.yaml
 kubectl apply -f examples/crds/example-redis-1.kdb-redis.yaml
 ```
 
-## Docs
+The local cluster `kdb-local` runs **1 server** (workloads) + **2 agents** (LB nodes). Because k3d can't map the same host port to multiple nodes, the range is split: **agent-0 → `6100-6149`**, **agent-1 → `6150-6199`**.
 
-- [Traefik TCP + PostgreSQL TLS](docs/traefik-tcp-postgres-tls.md)
-- [Traefik TCP + MongoDB TLS](docs/traefik-tcp-mongo-tls.md)
-- [Traefik TCP + Redis TLS](docs/traefik-tcp-redis-tls.md)
-- [Traefik v3.6.9 STARTTLS regression](docs/traefik-starttls-regression-v3.6.9.md)
+## Connecting
+
+Read the endpoint from the resource status and connect over plain TCP (no TLS):
+
+```bash
+HOST=$(kubectl get postgres my-pg -o jsonpath='{.status.host}')
+PORT=$(kubectl get postgres my-pg -o jsonpath='{.status.port}')
+
+psql "host=$HOST port=$PORT user=postgres dbname=postgres"                  # PostgreSQL
+mongosh "mongodb://my-user:my-pass@$HOST:$PORT/"                            # MongoDB
+redis-cli -h $HOST -p $PORT -a my-pass ping                                 # Redis
+```
+
+## Metrics
+
+The operator serves Prometheus metrics at **`:9090/metrics`** (`kdb_up`, `kdb_live_time_seconds`, `kdb_storage_mb`), labeled `uid`, `api_version`, `kind`, `name`, `namespace`.
+
+## Versions
+
+- Traefik: **`v3.6.8`** (chart `39.0.2`) — pinned (v3.6.9+ regression).
+- k3s: `v1.31.11-k3s1`.
