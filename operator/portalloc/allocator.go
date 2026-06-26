@@ -11,13 +11,18 @@ import (
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 )
 
+// FinalizerName is added to every managed DB CR so the operator can release the
+// CR's port allocation before the object is deleted from the API server.
+const FinalizerName = "kdb.io/port-release"
+
 const (
-	configMapName      = "kdb-port-allocations"
-	defaultPortRange   = "6100-6199"
-	lbNodeLabel        = "kdb/role"
-	lbNodeValue        = "lb"
+	configMapName       = "kdb-port-allocations"
+	defaultPortRange    = "6100-6199"
+	lbNodeLabel         = "kdb/role"
+	lbNodeValue         = "lb"
 	portRangeAnnotation = "kdb.io/port-range"
 	hostAnnotation      = "kdb.io/host"
 )
@@ -140,6 +145,43 @@ func (a *Allocator) Release(ctx context.Context, resourceKey string) error {
 		}
 	}
 	return nil
+}
+
+// HandleFinalizer keeps FinalizerName in sync with the lifecycle of obj.
+//
+// On a live object it ensures the finalizer is present. On a deleting object
+// (DeletionTimestamp set) it releases the object's port allocation, then drops
+// the finalizer so deletion can complete. Release is idempotent, so a requeue
+// after a partial failure is safe.
+//
+// It returns stop=true when the caller must return immediately: either the
+// object is being deleted, or the finalizer was just added (the resulting
+// update re-triggers reconciliation). stop=false means reconciliation should
+// continue normally.
+func (a *Allocator) HandleFinalizer(ctx context.Context, obj client.Object) (stop bool, err error) {
+	resourceKey := client.ObjectKeyFromObject(obj).String()
+
+	if obj.GetDeletionTimestamp().IsZero() {
+		if !controllerutil.ContainsFinalizer(obj, FinalizerName) {
+			controllerutil.AddFinalizer(obj, FinalizerName)
+			if err := a.client.Update(ctx, obj); err != nil {
+				return true, fmt.Errorf("failed to add finalizer: %w", err)
+			}
+			return true, nil
+		}
+		return false, nil
+	}
+
+	if controllerutil.ContainsFinalizer(obj, FinalizerName) {
+		if err := a.Release(ctx, resourceKey); err != nil {
+			return true, err
+		}
+		controllerutil.RemoveFinalizer(obj, FinalizerName)
+		if err := a.client.Update(ctx, obj); err != nil {
+			return true, fmt.Errorf("failed to remove finalizer: %w", err)
+		}
+	}
+	return true, nil
 }
 
 type portRange struct {

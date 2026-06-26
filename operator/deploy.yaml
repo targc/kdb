@@ -16,7 +16,7 @@ metadata:
 rules:
   - apiGroups: ["kdb.io"]
     resources: ["postgres", "redis", "mongo"]
-    verbs: ["get", "list", "watch"]
+    verbs: ["get", "list", "watch", "update", "patch"]
   - apiGroups: ["kdb.io"]
     resources: ["postgres/status", "redis/status", "mongo/status"]
     verbs: ["update", "patch"]

@@ -35,6 +35,14 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		return ctrl.Result{}, fmt.Errorf("failed to get Redis: %w", err)
 	}
 
+	// Register/run the port-release finalizer. On deletion this frees the
+	// allocation and stops before re-allocating below.
+	if stop, err := r.PortAlloc.HandleFinalizer(ctx, redis); err != nil {
+		return ctrl.Result{}, err
+	} else if stop {
+		return ctrl.Result{}, nil
+	}
+
 	// Allocate port on LB node (idempotent — returns existing if already assigned)
 	alloc, err := r.PortAlloc.Allocate(ctx, req.NamespacedName.String())
 	if err != nil {
