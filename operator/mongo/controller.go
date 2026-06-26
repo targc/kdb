@@ -164,9 +164,10 @@ func (r *Reconciler) reconcileDeployment(ctx context.Context, mongo *Mongo, imag
 			ObjectMeta: metav1.ObjectMeta{Labels: labels},
 			Spec: corev1.PodSpec{
 				Containers: []corev1.Container{{
-					Name:  "mongo",
-					Image: image,
-					Ports: []corev1.ContainerPort{{ContainerPort: 27017}},
+					Name:      "mongo",
+					Image:     image,
+					Ports:     []corev1.ContainerPort{{ContainerPort: 27017}},
+					Resources: resourceRequirements(mongo.Spec.Resources),
 					Env: []corev1.EnvVar{
 						{Name: "MONGO_INITDB_ROOT_USERNAME", Value: mongo.Spec.User},
 						{Name: "MONGO_INITDB_ROOT_PASSWORD", Value: mongo.Spec.Password},
@@ -201,9 +202,34 @@ func mountPath(mongo *Mongo) string {
 	return "/data/db"
 }
 
-func wrap(resource string, err error) error {
+func wrap(name string, err error) error {
 	if err != nil {
-		return fmt.Errorf("failed to reconcile %s: %w", resource, err)
+		return fmt.Errorf("failed to reconcile %s: %w", name, err)
 	}
 	return nil
+}
+
+// resourceRequirements maps the spec's cpu/memory strings to container requests/limits. Empty or
+// unparseable values are skipped (defensive — the backend and CRD already validate), so unset fields
+// simply fall back to the namespace/operator defaults.
+func resourceRequirements(rs ResourcesSpec) corev1.ResourceRequirements {
+	var requests, limits corev1.ResourceList
+	add := func(list *corev1.ResourceList, name corev1.ResourceName, qty string) {
+		if qty == "" {
+			return
+		}
+		q, err := resource.ParseQuantity(qty)
+		if err != nil {
+			return
+		}
+		if *list == nil {
+			*list = corev1.ResourceList{}
+		}
+		(*list)[name] = q
+	}
+	add(&requests, corev1.ResourceCPU, rs.Requests.CPU)
+	add(&requests, corev1.ResourceMemory, rs.Requests.Memory)
+	add(&limits, corev1.ResourceCPU, rs.Limits.CPU)
+	add(&limits, corev1.ResourceMemory, rs.Limits.Memory)
+	return corev1.ResourceRequirements{Requests: requests, Limits: limits}
 }

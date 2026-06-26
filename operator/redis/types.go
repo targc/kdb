@@ -22,10 +22,23 @@ type StorageSpec struct {
 	MountPath    string   `json:"mountPath,omitempty"`
 }
 
+// ResourceValues are k8s quantity strings (e.g. "100m", "256Mi"); empty = unset.
+type ResourceValues struct {
+	CPU    string `json:"cpu,omitempty"`
+	Memory string `json:"memory,omitempty"`
+}
+
+// ResourcesSpec is the container cpu/memory requests & limits for the DB pod.
+type ResourcesSpec struct {
+	Requests ResourceValues `json:"requests,omitempty"`
+	Limits   ResourceValues `json:"limits,omitempty"`
+}
+
 type Spec struct {
-	Password string      `json:"password"`
-	Image    string      `json:"image,omitempty"`
-	Storage  StorageSpec `json:"storage"`
+	Password  string        `json:"password"`
+	Image     string        `json:"image,omitempty"`
+	Storage   StorageSpec   `json:"storage"`
+	Resources ResourcesSpec `json:"resources,omitempty"`
 }
 
 type Status struct {

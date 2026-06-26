@@ -55,6 +55,24 @@ spec:
                     mountPath:
                       type: string
                       description: Mount path in container (default /data/db)
+                resources:
+                  type: object
+                  description: Container CPU/memory requests and limits
+                  properties:
+                    requests:
+                      type: object
+                      properties:
+                        cpu:
+                          type: string
+                        memory:
+                          type: string
+                    limits:
+                      type: object
+                      properties:
+                        cpu:
+                          type: string
+                        memory:
+                          type: string
             status:
               type: object
               properties:
