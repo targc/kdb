@@ -24,8 +24,14 @@ fi
 
 TAINT_KEY=${KDB_TAINT_KEY:-"kdb/role"}
 TAINT_VALUE=${KDB_TAINT_VALUE:-"lb"}
-LB_LABEL_KEY=${KDB_LB_LABEL_KEY:-"kdb/role"}
-LB_LABEL_VALUE=${KDB_LB_LABEL_VALUE:-"lb"}
+
+# Not configurable via env, unlike the taint: this must match the LB node
+# label the operator itself is hardcoded to (operator/portalloc/allocator.go:
+# lbNodeLabel/lbNodeValue) and the selector setup-traefik.sh uses to find LB
+# nodes. Overriding just this script's nodeSelector without also patching
+# the operator would deploy Traefik onto the wrong nodes entirely.
+LB_LABEL_KEY="kdb/role"
+LB_LABEL_VALUE="lb"
 
 # Expand ranges into a deduped, sorted port list (LB nodes' ranges may overlap
 # in the raw annotations; dedup keeps the generated ports: map unambiguous)
