@@ -1,5 +1,18 @@
 #!/bin/bash
-set -e
+# Usage (local):  bash scripts/staging/setup-traefik.sh
+# Usage (remote): curl -fsSL https://raw.githubusercontent.com/targc/kdb/main/scripts/staging/setup-traefik.sh | bash
+set -eo pipefail
+
+# When run via curl (pipe or process substitution), sibling scripts won't exist — clone and re-exec.
+if [ ! -f "$(dirname "${BASH_SOURCE[0]}")/setup-operator.sh" ]; then
+  REPO="https://github.com/targc/kdb"
+  TMPDIR="$(mktemp -d)"
+  trap 'rm -rf "$TMPDIR"' EXIT
+  echo "Cloning $REPO..."
+  git clone --depth=1 "$REPO" "$TMPDIR/kdb"
+  KDB_TAINT_KEY="$KDB_TAINT_KEY" KDB_TAINT_VALUE="$KDB_TAINT_VALUE" KDB_PORT_RANGE="$KDB_PORT_RANGE" bash "$TMPDIR/kdb/scripts/staging/setup-traefik.sh"
+  exit $?
+fi
 
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 GENERATE_SCRIPT="$DIR/../generate-traefik-values.sh"
