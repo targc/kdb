@@ -37,15 +37,23 @@ old_prefix = "$OLD_NODE" + "_"
 new_prefix = "$NEW_NODE" + "_"
 
 renamed = []
+deleted_keys = []
 for key in list(data.keys()):
     if key.startswith(old_prefix):
         port = key[len(old_prefix):]
         value = data.pop(key)
         data[new_prefix + port] = value
         renamed.append((port, value))
+        deleted_keys.append(key)
 
 with open('/tmp/cm-after.json', 'w') as f:
     json.dump(data, f)
+# kubectl patch --type merge follows JSON Merge Patch (RFC 7386): a key absent
+# from the patch means "leave it alone", not "delete it". Omitting the old
+# keys here would ADD the new ones and leave the old ones in place untouched —
+# they must be explicitly set to null in the patch to actually be removed.
+with open('/tmp/cm-deleted-keys.json', 'w') as f:
+    json.dump(deleted_keys, f)
 
 # The relabel worklist is every entry now under NEW_NODE, not just what this
 # run renamed — so re-running after a partial failure (e.g. a prior run's
@@ -90,7 +98,14 @@ PATCH=$(python3 -c "
 import json
 with open('/tmp/cm-after.json') as f:
     data = json.load(f)
-print(json.dumps({'data': data}))
+with open('/tmp/cm-deleted-keys.json') as f:
+    deleted_keys = json.load(f)
+# Set the old, now-renamed keys to null so the merge patch actually deletes
+# them instead of just adding the new ones alongside the untouched old ones.
+patch_data = dict(data)
+for k in deleted_keys:
+    patch_data[k] = None
+print(json.dumps({'data': patch_data}))
 ")
 kubectl patch configmap kdb-port-allocations -n "$NAMESPACE" --type merge -p "$PATCH"
 echo "ConfigMap updated."
