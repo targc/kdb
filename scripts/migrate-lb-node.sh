@@ -36,22 +36,29 @@ data = cm.get('data', {})
 old_prefix = "$OLD_NODE" + "_"
 new_prefix = "$NEW_NODE" + "_"
 
-migrated = []
+renamed = []
 for key in list(data.keys()):
     if key.startswith(old_prefix):
         port = key[len(old_prefix):]
         value = data.pop(key)
         data[new_prefix + port] = value
-        migrated.append((port, value))
+        renamed.append((port, value))
 
 with open('/tmp/cm-after.json', 'w') as f:
     json.dump(data, f)
+
+# The relabel worklist is every entry now under NEW_NODE, not just what this
+# run renamed — so re-running after a partial failure (e.g. a prior run's
+# ConfigMap patch already succeeded but the relabel loop died partway) picks
+# up exactly where it left off instead of finding "0 to migrate" and no-op'ing.
+to_label = [(k[len(new_prefix):], v) for k, v in data.items() if k.startswith(new_prefix)]
 with open('/tmp/migrated.txt', 'w') as f:
-    for port, value in migrated:
+    for port, value in to_label:
         f.write(f"{value}\n")
 
-print(f"Migrating {len(migrated)} allocations:")
-for port, value in migrated:
+print(f"Renaming {len(renamed)} ConfigMap entries this run.")
+print(f"Relabeling {len(to_label)} IngressRouteTCP objects (includes any already-renamed from a prior run):")
+for port, value in to_label:
     print(f"  port {port} -> {value}")
 PYEOF
 
@@ -88,9 +95,23 @@ print(json.dumps({'data': data}))
 kubectl patch configmap kdb-port-allocations -n "$NAMESPACE" --type merge -p "$PATCH"
 echo "ConfigMap updated."
 
+MISSING=""
 while IFS=/ read -r ns name; do
-  echo "Relabeling IngressRouteTCP $name in $ns"
-  kubectl label ingressroutetcp.traefik.io "$name" -n "$ns" kdb.io/lb-node="$NEW_NODE" --overwrite
+  if kubectl get ingressroutetcp.traefik.io "$name" -n "$ns" &>/dev/null; then
+    echo "Relabeling IngressRouteTCP $name in $ns (traefik.io)"
+    kubectl label ingressroutetcp.traefik.io "$name" -n "$ns" kdb.io/lb-node="$NEW_NODE" --overwrite
+  elif kubectl get ingressroutetcp.traefik.containo.us "$name" -n "$ns" &>/dev/null; then
+    echo "Relabeling IngressRouteTCP $name in $ns (traefik.containo.us)"
+    kubectl label ingressroutetcp.traefik.containo.us "$name" -n "$ns" kdb.io/lb-node="$NEW_NODE" --overwrite
+  else
+    echo "WARNING: no IngressRouteTCP found for $name in $ns (checked traefik.io and traefik.containo.us) — skipping" >&2
+    MISSING="$MISSING $ns/$name"
+  fi
 done < /tmp/migrated.txt
 
-echo "Done."
+echo
+if [ -n "$MISSING" ]; then
+  echo "Done, with warnings — no IngressRouteTCP object found for:$MISSING"
+else
+  echo "Done, all relabeled."
+fi
