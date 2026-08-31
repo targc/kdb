@@ -3,6 +3,10 @@ set -e
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 IMAGE="k3d-registry.localhost:5000/kdb-operator:latest"
 
+# Must match the range setup-trafik.sh gave Traefik — the operator only
+# allocates ports it can actually reach.
+KDB_PORT_RANGE="${KDB_PORT_RANGE:-6100-6199}"
+
 echo "Building operator image..."
 docker build -t $IMAGE "$ROOT/operator"
 
@@ -14,5 +18,7 @@ kubectl apply -f "$ROOT/operator/crds/"
 
 echo "Deploying operator..."
 kubectl apply -f "$ROOT/operator/deploy.yaml"
+kubectl patch deployment kdb-operator --namespace kdb \
+  -p "{\"spec\":{\"template\":{\"spec\":{\"containers\":[{\"name\":\"operator\",\"env\":[{\"name\":\"KDB_PORT_RANGE\",\"value\":\"$KDB_PORT_RANGE\"}]}]}}}}"
 kubectl rollout restart -n kdb deployment/kdb-operator
 kubectl rollout status -n kdb deployment/kdb-operator

@@ -6,6 +6,11 @@ GENERATE_SCRIPT="$DIR/../generate-traefik-values.sh"
 
 TRAEFIK_CHART_VERSION="39.0.2"  # app v3.6.8
 
+# Same port range every LB node opens, and the same range the operator itself
+# allocates from (operator/portalloc/allocator.go defaults to this too) — one
+# shared value, not a per-node kdb.io/port-range annotation.
+KDB_PORT_RANGE="${KDB_PORT_RANGE:-6100-6199}"
+
 helm repo add traefik https://traefik.github.io/charts
 helm repo update
 
@@ -15,25 +20,13 @@ if kubectl get crd ingressroutetcps.traefik.io &>/dev/null; then
   SKIP_CRDS="--skip-crds"
 fi
 
-# Union the port ranges annotated on every LB node into one range list, so a
-# single Traefik DaemonSet (one pod per LB node) opens every allocated port.
-RANGES=""
-for node in $(kubectl get nodes -l kdb/role=lb -o jsonpath='{.items[*].metadata.name}'); do
-  range=$(kubectl get node "$node" -o jsonpath='{.metadata.annotations.kdb\.io/port-range}')
-  if [ -z "$range" ]; then
-    echo "Error: node $node missing annotation kdb.io/port-range" >&2
-    exit 1
-  fi
-  RANGES="${RANGES:+$RANGES,}$range"
-done
-
-if [ -z "$RANGES" ]; then
+if [ -z "$(kubectl get nodes -l kdb/role=lb -o jsonpath='{.items[*].metadata.name}')" ]; then
   echo "Error: no LB nodes found (label kdb/role=lb)" >&2
   exit 1
 fi
 
-echo "Deploying single Traefik DaemonSet across all LB nodes (ports $RANGES)"
-bash "$GENERATE_SCRIPT" "$RANGES" | \
+echo "Deploying single Traefik DaemonSet across all LB nodes (ports $KDB_PORT_RANGE)"
+bash "$GENERATE_SCRIPT" "$KDB_PORT_RANGE" | \
   helm upgrade --install kdb-traefik traefik/traefik \
     --version "$TRAEFIK_CHART_VERSION" \
     --namespace kdb \

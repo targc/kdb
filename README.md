@@ -41,7 +41,7 @@ Client (psql / mongosh / redis-cli)
                     └─► Service ─► Database pod   # plain TCP, no TLS
 ```
 
-- **One endpoint per database.** A port is allocated from the LB node's range and is **fixed for the life of the resource** — `status.host`/`status.port` are set once and never change.
+- **One endpoint per database.** A port is allocated from the shared `KDB_PORT_RANGE` on an LB node and is **fixed for the life of the resource** — `status.host`/`status.port` are set once and never change.
 - **Routing is by port, not hostname.** Each `IngressRouteTCP` uses entrypoint `tcp-<port>` + `HostSNI(\`*\`)`, and is labeled `kdb.io/lb-node=<node>` so only that node's Traefik serves it.
 - **Allocation state** lives in the ConfigMap `kdb-port-allocations` (namespace `kdb`): key `<node>_<port>` → `<namespace>/<resource>`.
 
@@ -72,10 +72,8 @@ storage:
 ## Prerequisites
 
 - A Kubernetes cluster with **Traefik v3.6.8** (chart `39.0.2`) installed on the load-balancer nodes (the setup scripts handle this).
-- One or more **LB nodes**, each:
-  - labeled **`kdb/role=lb`** (used by the operator to discover them), and
-  - annotated **`kdb.io/port-range`** (e.g. `6100-6199`, or multi-range `6100-6149,6200-6249`).
-  - Optionally annotated **`kdb.io/host=<public-host>`** — becomes the resource's `status.host` (falls back to the node's InternalIP).
+- One or more **LB nodes**, each labeled **`kdb/role=lb`** (used by the operator to discover them and by Traefik's DaemonSet `nodeSelector`). Optionally annotated **`kdb.io/host=<public-host>`** — becomes the resource's `status.host` (falls back to the node's InternalIP).
+- A shared **`KDB_PORT_RANGE`** (e.g. `6100-6199`, or multi-range `6100-6149,6200-6249`) — the same range every LB node opens and the operator allocates from (default `6100-6199` if unset). Set once when running `setup-traefik.sh` and the operator, not per node.
 
 > **Note:** Traefik **v3.6.9+ has a PostgreSQL STARTTLS regression** — the scripts pin **v3.6.8**.
 
@@ -107,7 +105,7 @@ kubectl apply -f examples/crds/example-mongo-1.kdb-mongo.yaml
 kubectl apply -f examples/crds/example-redis-1.kdb-redis.yaml
 ```
 
-The local cluster `kdb-local` runs **1 server** (workloads) + **2 agents** (LB nodes). Because k3d can't map the same host port to multiple nodes, the range is split: **agent-0 → `6100-6149`**, **agent-1 → `6150-6199`**.
+The local cluster `kdb-local` runs **1 server** (workloads) + **1 agent** (the LB node), mapped to the host over `6100-6199`. Traefik is a single DaemonSet shared across every LB node in the cluster (see "How it works" below) — a second local LB agent would need its own disjoint Docker port mapping (`k3d` can't map the same host port to two containers) while the operator now allocates from one uniform range across all LB nodes, so a real multi-LB-node topology is exercised against staging instead, not locally.
 
 ## Connecting
 

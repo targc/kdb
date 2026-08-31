@@ -13,14 +13,14 @@ if [ ! -f "$(dirname "${BASH_SOURCE[0]}")/setup-operator.sh" ]; then
   trap 'rm -rf "$TMPDIR"' EXIT
   echo "Cloning $REPO..."
   git clone --depth=1 "$REPO" "$TMPDIR/kdb"
-  IMAGE="$IMAGE" NAMESPACE="$NAMESPACE" BUILD_OPERATOR_IMAGE="$BUILD_OPERATOR_IMAGE" KDB_TAINT_KEY="$KDB_TAINT_KEY" KDB_TAINT_VALUE="$KDB_TAINT_VALUE" bash "$TMPDIR/kdb/scripts/staging/setup.sh"
+  IMAGE="$IMAGE" NAMESPACE="$NAMESPACE" BUILD_OPERATOR_IMAGE="$BUILD_OPERATOR_IMAGE" KDB_TAINT_KEY="$KDB_TAINT_KEY" KDB_TAINT_VALUE="$KDB_TAINT_VALUE" KDB_PORT_RANGE="$KDB_PORT_RANGE" bash "$TMPDIR/kdb/scripts/staging/setup.sh"
   exit $?
 fi
 
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-KDB_TAINT_KEY="$KDB_TAINT_KEY" KDB_TAINT_VALUE="$KDB_TAINT_VALUE" bash "$DIR/setup-traefik.sh"
+KDB_TAINT_KEY="$KDB_TAINT_KEY" KDB_TAINT_VALUE="$KDB_TAINT_VALUE" KDB_PORT_RANGE="$KDB_PORT_RANGE" bash "$DIR/setup-traefik.sh"
 if [ "${BUILD_OPERATOR_IMAGE}" = "true" ]; then
   bash "$DIR/build-operator.sh"
 fi
-bash "$DIR/setup-operator.sh"
+KDB_PORT_RANGE="$KDB_PORT_RANGE" bash "$DIR/setup-operator.sh"

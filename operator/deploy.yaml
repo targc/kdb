@@ -71,6 +71,9 @@ spec:
           ports:
             - containerPort: 9090
               name: metrics
+          env:
+            - name: KDB_PORT_RANGE
+              value: "6100-6199"
 ---
 apiVersion: v1
 kind: Service
