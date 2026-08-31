@@ -25,6 +25,13 @@ fi
 TAINT_KEY=${KDB_TAINT_KEY:-"kdb/role"}
 TAINT_VALUE=${KDB_TAINT_VALUE:-"lb"}
 
+# Optional second toleration, for LB nodes carrying an unrelated pre-existing
+# taint (e.g. a node reused from an older ingress setup) that should stay as
+# it is rather than being rewritten to match kdb/role=lb. A pod schedules if
+# it matches ANY toleration in its list, so this is additive, not a replacement.
+EXTRA_TAINT_KEY=${KDB_EXTRA_TAINT_KEY:-}
+EXTRA_TAINT_VALUE=${KDB_EXTRA_TAINT_VALUE:-}
+
 # Not configurable via env, unlike the taint: this must match the LB node
 # label the operator itself is hardcoded to (operator/portalloc/allocator.go:
 # lbNodeLabel/lbNodeValue) and the selector setup-traefik.sh uses to find LB
@@ -95,3 +102,12 @@ tolerations:
     operator: "Equal"
     effect: "NoSchedule"
 EOF
+
+if [ -n "$EXTRA_TAINT_KEY" ]; then
+  cat <<EOF
+  - key: "${EXTRA_TAINT_KEY}"
+    value: "${EXTRA_TAINT_VALUE}"
+    operator: "Equal"
+    effect: "NoSchedule"
+EOF
+fi

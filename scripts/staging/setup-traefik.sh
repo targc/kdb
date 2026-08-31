@@ -10,7 +10,7 @@ if [ ! -f "$(dirname "${BASH_SOURCE[0]}")/setup-operator.sh" ]; then
   trap 'rm -rf "$TMPDIR"' EXIT
   echo "Cloning $REPO..."
   git clone --depth=1 "$REPO" "$TMPDIR/kdb"
-  KDB_TAINT_KEY="$KDB_TAINT_KEY" KDB_TAINT_VALUE="$KDB_TAINT_VALUE" KDB_PORT_RANGE="$KDB_PORT_RANGE" bash "$TMPDIR/kdb/scripts/staging/setup-traefik.sh"
+  KDB_TAINT_KEY="$KDB_TAINT_KEY" KDB_TAINT_VALUE="$KDB_TAINT_VALUE" KDB_PORT_RANGE="$KDB_PORT_RANGE" KDB_EXTRA_TAINT_KEY="$KDB_EXTRA_TAINT_KEY" KDB_EXTRA_TAINT_VALUE="$KDB_EXTRA_TAINT_VALUE" bash "$TMPDIR/kdb/scripts/staging/setup-traefik.sh"
   exit $?
 fi
 
