@@ -88,7 +88,7 @@ curl -fsSL https://raw.githubusercontent.com/targc/kdb/main/scripts/staging/setu
   | IMAGE=ghcr.io/targc/kdb-operator:latest bash
 ```
 
-The script installs Traefik (one instance per LB node) and deploys the operator. Environment variables:
+The script installs Traefik (a single DaemonSet release, one pod per LB node) and deploys the operator. Environment variables:
 
 | Variable | Default | Description |
 |----------|---------|-------------|

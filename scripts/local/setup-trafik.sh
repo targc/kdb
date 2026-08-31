@@ -15,21 +15,29 @@ if kubectl get crd ingressroutetcps.traefik.io &>/dev/null; then
   SKIP_CRDS="--skip-crds"
 fi
 
-# Deploy one Traefik instance per LB node, using its annotated port range
+# Union the port ranges annotated on every LB node into one range list, so a
+# single Traefik DaemonSet (one pod per LB node) opens every allocated port.
+RANGES=""
 for node in $(kubectl get nodes -l kdb/role=lb -o jsonpath='{.items[*].metadata.name}'); do
   range=$(kubectl get node "$node" -o jsonpath='{.metadata.annotations.kdb\.io/port-range}')
   if [ -z "$range" ]; then
     echo "Error: node $node missing annotation kdb.io/port-range" >&2
     exit 1
   fi
-
-  echo "Deploying Traefik for LB node: $node (ports $range)"
-  bash "$GENERATE_SCRIPT" "$range" "$node" | \
-    helm upgrade --install "kdb-traefik-$node" traefik/traefik \
-      --version "$TRAEFIK_CHART_VERSION" \
-      --namespace kdb \
-      --create-namespace \
-      --wait \
-      $SKIP_CRDS \
-      -f -
+  RANGES="${RANGES:+$RANGES,}$range"
 done
+
+if [ -z "$RANGES" ]; then
+  echo "Error: no LB nodes found (label kdb/role=lb)" >&2
+  exit 1
+fi
+
+echo "Deploying single Traefik DaemonSet across all LB nodes (ports $RANGES)"
+bash "$GENERATE_SCRIPT" "$RANGES" | \
+  helm upgrade --install kdb-traefik traefik/traefik \
+    --version "$TRAEFIK_CHART_VERSION" \
+    --namespace kdb \
+    --create-namespace \
+    --wait \
+    $SKIP_CRDS \
+    -f -

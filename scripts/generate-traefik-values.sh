@@ -1,29 +1,34 @@
 #!/bin/bash
-# Generates traefik-values.yaml with pre-allocated TCP entrypoints.
+# Generates traefik-values.yaml for a single cluster-wide Traefik DaemonSet
+# running on every LB node (kdb/role=lb). Every pod opens the full union of
+# pre-allocated TCP entrypoints (hostPort), but each pod only *routes* the
+# IngressRouteTCP objects labeled for the node it actually landed on
+# (kdb.io/lb-node=<node>, set by the operator's port allocator) — so each
+# database still resolves to exactly one host:port, even though the port
+# itself is physically open on every LB node.
 #
 # Usage:
-#   bash scripts/generate-traefik-values.sh <min> <max> [node-name]
-#   bash scripts/generate-traefik-values.sh <range1,range2,...> [node-name]
+#   bash scripts/generate-traefik-values.sh <min> <max>
+#   bash scripts/generate-traefik-values.sh <range1,range2,...>
 #
 # Examples:
 #   bash scripts/generate-traefik-values.sh 6100 6199
-#   bash scripts/generate-traefik-values.sh 6100-6149,6200-6249 node-a
+#   bash scripts/generate-traefik-values.sh 6100-6149,6200-6249
 
-# Parse args: support both "min max [node]" and "ranges [node]" formats
-if echo "$1" | grep -q '[,-]' 2>/dev/null && [ -z "$3" ]; then
-  # Format: "6100-6149,6200-6249" [node-name]
+# Parse args: support both "min max" and "ranges" formats
+if echo "$1" | grep -q '[,-]' 2>/dev/null; then
   RANGES="$1"
-  NODE_NAME="${2:-}"
 else
-  # Format: min max [node-name]
   RANGES="${1:-6100}-${2:-6199}"
-  NODE_NAME="${3:-}"
 fi
 
 TAINT_KEY=${KDB_TAINT_KEY:-"kdb/role"}
 TAINT_VALUE=${KDB_TAINT_VALUE:-"lb"}
+LB_LABEL_KEY=${KDB_LB_LABEL_KEY:-"kdb/role"}
+LB_LABEL_VALUE=${KDB_LB_LABEL_VALUE:-"lb"}
 
-# Expand ranges into port list
+# Expand ranges into a deduped, sorted port list (LB nodes' ranges may overlap
+# in the raw annotations; dedup keeps the generated ports: map unambiguous)
 expand_ports() {
   local ranges="$1"
   IFS=',' read -ra parts <<< "$ranges"
@@ -31,7 +36,7 @@ expand_ports() {
     local min="${part%-*}"
     local max="${part#*-}"
     seq "$min" "$max"
-  done
+  done | sort -un
 }
 
 PORTS=$(expand_ports "$RANGES")
@@ -41,20 +46,13 @@ image:
   tag: v3.6.8
 
 deployment:
-EOF
-
-if [ -n "$NODE_NAME" ]; then
-  cat <<EOF
-  kind: Deployment
-  replicas: 1
-EOF
-else
-  cat <<EOF
   kind: DaemonSet
-EOF
-fi
 
-cat <<EOF
+updateStrategy:
+  type: RollingUpdate
+  rollingUpdate:
+    maxUnavailable: 1
+    maxSurge: 0
 
 service:
   enabled: false
@@ -71,22 +69,19 @@ for port in $PORTS; do
 EOF
 done
 
-echo ""
-echo "additionalArguments:"
-for port in $PORTS; do
-  echo "  - \"--entrypoints.tcp-${port}.address=:${port}\""
-done
+cat <<EOF
 
-if [ -n "$NODE_NAME" ]; then
-  echo "  - \"--providers.kubernetescrd.labelSelector=kdb.io/lb-node=${NODE_NAME}\""
-fi
+env:
+  - name: NODE_NAME
+    valueFrom:
+      fieldRef:
+        fieldPath: spec.nodeName
 
-echo ""
+additionalArguments:
+  - "--providers.kubernetescrd.labelSelector=kdb.io/lb-node=\$(NODE_NAME)"
 
-if [ -n "$NODE_NAME" ]; then
-  cat <<EOF
 nodeSelector:
-  kubernetes.io/hostname: ${NODE_NAME}
+  ${LB_LABEL_KEY}: ${LB_LABEL_VALUE}
 
 tolerations:
   - key: "${TAINT_KEY}"
@@ -94,11 +89,3 @@ tolerations:
     operator: "Equal"
     effect: "NoSchedule"
 EOF
-else
-  cat <<EOF
-tolerations:
-  - key: "node-role.kubernetes.io/control-plane"
-    operator: "Exists"
-    effect: "NoSchedule"
-EOF
-fi
