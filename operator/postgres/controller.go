@@ -176,6 +176,11 @@ func (r *Reconciler) reconcileDeployment(ctx context.Context, pg *Postgres, imag
 			env = append(env, corev1.EnvVar{Name: "POSTGRES_DB", Value: pg.Spec.Database})
 		}
 		dep.Spec.Replicas = &replicas
+		// Recreate, not the default RollingUpdate: replicas=1 on a ReadWriteOnce PVC means a
+		// surge-first rollout tries to attach the volume to a new pod before the old one
+		// releases it — Multi-Attach error, pod stuck Pending. Recreate fully terminates the
+		// old pod (and detaches the PVC) before creating the new one, so that race can't happen.
+		dep.Spec.Strategy = appsv1.DeploymentStrategy{Type: appsv1.RecreateDeploymentStrategyType}
 		dep.Spec.Template = corev1.PodTemplateSpec{
 			ObjectMeta: metav1.ObjectMeta{Labels: labels},
 			Spec: corev1.PodSpec{
