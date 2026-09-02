@@ -179,6 +179,13 @@ func (r *Reconciler) reconcileDeployment(ctx context.Context, pg *Postgres, imag
 		dep.Spec.Template = corev1.PodTemplateSpec{
 			ObjectMeta: metav1.ObjectMeta{Labels: labels},
 			Spec: corev1.PodSpec{
+				// postgres:16 (Debian-based) conventionally runs as uid/gid 999 — NOT verified
+				// against a live pod, unlike redis's confirmed 999 (see redis/controller.go).
+				// fsGroup makes kubelet chown the PVC mount to that group so it's writable
+				// regardless of whether the underlying volume starts out root-owned (e.g. a
+				// freshly formatted Longhorn disk). Confirm with `kubectl exec <pod> -- id postgres`
+				// before relying on this in production.
+				SecurityContext: &corev1.PodSecurityContext{FSGroup: int64Ptr(999)},
 				Containers: []corev1.Container{{
 					Name:      "postgres",
 					Image:     image,
@@ -217,6 +224,8 @@ func mountPath(pg *Postgres) string {
 	}
 	return "/var/lib/postgresql/data"
 }
+
+func int64Ptr(v int64) *int64 { return &v }
 
 func wrap(name string, err error) error {
 	if err != nil {

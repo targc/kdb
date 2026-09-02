@@ -171,6 +171,13 @@ func (r *Reconciler) reconcileDeployment(ctx context.Context, mongo *Mongo, imag
 		dep.Spec.Template = corev1.PodTemplateSpec{
 			ObjectMeta: metav1.ObjectMeta{Labels: labels},
 			Spec: corev1.PodSpec{
+				// mongo:8.2 (Debian-based) conventionally runs as uid/gid 999 — NOT verified
+				// against a live pod, unlike redis's confirmed 999 (see redis/controller.go).
+				// fsGroup makes kubelet chown the PVC mount to that group so it's writable
+				// regardless of whether the underlying volume starts out root-owned (e.g. a
+				// freshly formatted Longhorn disk). Confirm with `kubectl exec <pod> -- id mongodb`
+				// before relying on this in production.
+				SecurityContext: &corev1.PodSecurityContext{FSGroup: int64Ptr(999)},
 				Containers: []corev1.Container{{
 					Name:      "mongo",
 					Image:     image,
@@ -209,6 +216,8 @@ func mountPath(mongo *Mongo) string {
 	}
 	return "/data/db"
 }
+
+func int64Ptr(v int64) *int64 { return &v }
 
 func wrap(name string, err error) error {
 	if err != nil {

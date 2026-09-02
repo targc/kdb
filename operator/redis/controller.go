@@ -181,7 +181,12 @@ func (r *Reconciler) reconcileDeployment(ctx context.Context, redis *Redis, imag
 		dep.Spec.Template = corev1.PodTemplateSpec{
 			ObjectMeta: metav1.ObjectMeta{Labels: labels},
 			Spec: corev1.PodSpec{
-				Containers: []corev1.Container{container},
+				// redis:8 runs as uid/gid 999 (confirmed via `id redis` in-cluster) — fsGroup
+				// makes kubelet chown the PVC mount to that group, so it's writable regardless
+				// of whether the underlying volume (e.g. a freshly formatted Longhorn disk)
+				// starts out root-owned.
+				SecurityContext: &corev1.PodSecurityContext{FSGroup: int64Ptr(999)},
+				Containers:      []corev1.Container{container},
 				Volumes: []corev1.Volume{{
 					Name: "data",
 					VolumeSource: corev1.VolumeSource{
@@ -209,6 +214,8 @@ func mountPath(redis *Redis) string {
 	}
 	return "/data"
 }
+
+func int64Ptr(v int64) *int64 { return &v }
 
 func wrap(name string, err error) error {
 	if err != nil {
